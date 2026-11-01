@@ -61,23 +61,31 @@ export function BusinessHome(p: {
         </div>
         <h1>{b.name}</h1>
         {s.description && <p className="hero-text">{s.description}</p>}
-        <div className="hero-actions">
-          {s.address && (
-            <span className="chip">
-              <Icon name="pin" size={15} /> {s.address}
-            </span>
-          )}
-          {s.contactPhone && (
-            <a className="chip" href={`tel:${s.contactPhone.replace(/[^\d+]/g, "")}`}>
-              <Icon name="phone" size={15} /> {s.contactPhone}
-            </a>
-          )}
-          {s.links.map((l) => (
-            <button key={l.url} className="chip" onClick={() => openLink(l.url)}>
-              <Icon name="link" size={15} /> {l.title}
-            </button>
-          ))}
-        </div>
+        {(s.address || s.contactPhone) && (
+          <div className="hero-info">
+            {s.address && (
+              <button className="info-item" onClick={() => openLink(`https://yandex.ru/maps/?text=${encodeURIComponent(s.address)}`)}>
+                <span className="info-label">Адрес</span>
+                <span className="info-val">{s.address}</span>
+              </button>
+            )}
+            {s.contactPhone && (
+              <a className="info-item info-phone" href={`tel:${s.contactPhone.replace(/[^\d+]/g, "")}`}>
+                <span className="info-label">Телефон</span>
+                <span className="info-val">{s.contactPhone}</span>
+              </a>
+            )}
+          </div>
+        )}
+        {s.links.length > 0 && (
+          <div className="hero-links">
+            {s.links.map((l) => (
+              <button key={l.url} className="hero-link" onClick={() => openLink(l.url)}>
+                {l.title}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <div className="home-actions">
