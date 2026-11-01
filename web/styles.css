@@ -463,3 +463,6 @@ html.tabbar-hidden .tabbar { display: none; }
 
 /* Тонкая линия над прайсом — как между описанием и адресом */
 .home-price::before { content: ""; display: block; height: 1px; background: var(--sep); margin: 6px 20px 18px; }
+
+/* Название бизнеса мелко в самом низу главной */
+.home-foot { text-align: center; color: var(--hint); font-size: 13px; letter-spacing: 0.02em; padding: 18px 20px 8px; }

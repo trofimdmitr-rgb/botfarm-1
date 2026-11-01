@@ -171,6 +171,8 @@ export function BusinessHome(p: {
           Вы управляете этим бизнесом — открыть панель
         </button>
       )}
+
+      <footer className="home-foot">{b.name}</footer>
     </div>
   );
 }
