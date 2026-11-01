@@ -70,12 +70,16 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .cover-blur {
   filter: blur(16px) saturate(1.1);
   transform: scale(1.12);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 38%, #000 72%);
-  mask-image: linear-gradient(to bottom, transparent 38%, #000 72%);
+  /* размытие и снизу (к тексту), и сверху (к шапке Telegram) */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.6) 8%, transparent 22%, transparent 40%, #000 72%);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.6) 8%, transparent 22%, transparent 40%, #000 72%);
 }
 .hero-cover .cover::after {
   content: ""; position: absolute; inset: 0 0 -2px; z-index: 1;
-  background: linear-gradient(to bottom, transparent 42%, color-mix(in srgb, var(--bg) 60%, transparent) 68%, var(--bg) 94%);
+  /* сверху баннер плавно уходит в цвет шапки (он же цвет фона), снизу — в фон под текстом */
+  background:
+    linear-gradient(to bottom, var(--bg) 0%, color-mix(in srgb, var(--bg) 78%, transparent) 4%, color-mix(in srgb, var(--bg) 45%, transparent) 9%, color-mix(in srgb, var(--bg) 15%, transparent) 15%, transparent 21%),
+    linear-gradient(to bottom, transparent 42%, color-mix(in srgb, var(--bg) 60%, transparent) 68%, var(--bg) 94%);
 }
 .hero-cover h1, .hero-cover .hero-text, .hero-cover .hero-actions { position: relative; z-index: 1; }
 .hero-cover.has-banner h1 { text-shadow: 0 1px 16px color-mix(in srgb, var(--bg) 90%, transparent); font-size: 30px; line-height: 1.12; }
