@@ -134,10 +134,11 @@ export function BusinessHome(p: {
             )}
           </div>
           <div className="price-list">
-            {(allPrices ? b.services : b.services.slice(0, PRICE_PREVIEW)).map((svc) => (
+            {(allPrices ? b.services : b.services.slice(0, PRICE_PREVIEW)).map((svc, i) => (
               <button
                 key={svc.id}
-                className="price-row"
+                className={`price-row ${i >= PRICE_PREVIEW ? "price-row-more" : ""}`}
+                style={i >= PRICE_PREVIEW ? { animationDelay: `${(i - PRICE_PREVIEW) * 0.03}s` } : undefined}
                 onClick={() => {
                   haptic();
                   p.onBook(svc.id);

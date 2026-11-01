@@ -424,3 +424,6 @@ html.tabbar-hidden .tabbar { display: none; }
   -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent);
   mask-image: linear-gradient(to bottom, #000 30%, transparent);
 }
+
+/* Строки, раскрытые кнопкой «Все N», появляются сразу и быстро, без задержки запуска главной */
+.screen .price-row.price-row-more { animation: rise 0.22s ease-out both; }
