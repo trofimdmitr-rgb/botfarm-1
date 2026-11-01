@@ -6,6 +6,9 @@ import { api, applyTheme, enableDragScroll, ensureDevAuth, inTelegram, makeTheme
 import { Landing, SuperPanel } from "./platform";
 import type { Boot } from "./types";
 import { ErrorBox, Spinner } from "./ui";
+// изящный курсив для подписи внизу главной — встроен в сборку (только кириллица и латиница, ~40 КБ)
+import "@fontsource/cormorant-garamond/cyrillic-500-italic.css";
+import "@fontsource/cormorant-garamond/latin-500-italic.css";
 import "./styles.css";
 
 type Route =

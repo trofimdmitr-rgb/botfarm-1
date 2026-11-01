@@ -11,6 +11,7 @@
     "build:api": "node scripts/gen-schema.mjs && esbuild server/entry.ts --bundle --platform=node --target=node22 --format=esm --packages=external --outfile=api/index.mjs"
   },
   "dependencies": {
+    "@fontsource/cormorant-garamond": "^5.3.0",
     "grammy": "^1.46.0",
     "luxon": "^3.7.2",
     "postgres": "^3.4.9",
