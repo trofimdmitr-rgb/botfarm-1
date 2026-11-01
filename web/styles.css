@@ -460,3 +460,6 @@ html.tabbar-hidden .tabbar { display: none; }
 .days.dragging, .home-works-row.dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; scroll-behavior: auto; }
 .days.dragging *, .home-works-row.dragging * { pointer-events: none; }
 .days img, .home-works-row img { -webkit-user-drag: none; user-select: none; }
+
+/* Тонкая линия над прайсом — как между описанием и адресом */
+.home-price::before { content: ""; display: block; height: 1px; background: var(--sep); margin: 6px 20px 18px; }
