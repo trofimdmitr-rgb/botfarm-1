@@ -95,6 +95,8 @@ function App() {
       <div className="screen" key={`${stack.length}:${JSON.stringify(route)}`}>
         {screen(boot)}
       </div>
+      {/* закреплённый мягкий переход под шапкой Telegram: при прокрутке содержимое уходит в цвет шапки без шва */}
+      {theme && <div className="top-fade" aria-hidden />}
       {showTabs && <ClientTabBar active={clientTab} hasWorks={biz.portfolio.length > 0} onGo={goTab} />}
     </ThemeContext.Provider>
   );
