@@ -448,3 +448,7 @@ html.tabbar-hidden .tabbar { display: none; }
   text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--text) 35%, transparent); text-underline-offset: 4px;
 }
 .hero-link:active { opacity: 0.6; }
+/* значения адреса/телефона и ссылки — тем же шрифтом и цветом, что описание под названием */
+.info-val { font-size: 15px; font-weight: 400; color: var(--sub); line-height: 1.4; }
+.info-label { font-weight: 500; opacity: 0.85; }
+.hero-link { font-size: 15px; font-weight: 400; color: var(--sub); text-decoration-color: color-mix(in srgb, var(--sub) 45%, transparent); }
