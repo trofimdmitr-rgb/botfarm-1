@@ -452,3 +452,11 @@ html.tabbar-hidden .tabbar { display: none; }
 .info-val { font-size: 15px; font-weight: 400; color: var(--sub); line-height: 1.4; }
 .info-label { font-weight: 500; opacity: 0.85; }
 .hero-link { font-size: 15px; font-weight: 400; color: var(--sub); text-decoration-color: color-mix(in srgb, var(--sub) 45%, transparent); }
+
+/* Ленты, которые на компьютере можно тянуть мышью */
+@media (pointer: fine) {
+  .days, .home-works-row { cursor: grab; }
+}
+.days.dragging, .home-works-row.dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; scroll-behavior: auto; }
+.days.dragging *, .home-works-row.dragging * { pointer-events: none; }
+.days img, .home-works-row img { -webkit-user-drag: none; user-select: none; }

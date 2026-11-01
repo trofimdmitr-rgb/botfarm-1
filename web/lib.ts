@@ -316,3 +316,76 @@ export function useBannerTone(biz: { id: number; settings: { bannerFileId?: stri
 
 export const ThemeContext = createContext<Theme | null>(null);
 export const useTheme = () => useContext(ThemeContext);
+
+/**
+ * Горизонтальные ленты (даты записи, лента работ) на компьютере: перетаскивание мышью с зажатой кнопкой
+ * и прокрутка колёсиком. На телефоне ничего не меняет — там работает обычный свайп.
+ * Один обработчик на весь документ, поэтому подхватывает и ленты, которые появятся позже.
+ */
+const DRAG_SCROLL = ".days, .home-works-row";
+
+export function enableDragScroll() {
+  let el: HTMLElement | null = null;
+  let startX = 0;
+  let startLeft = 0;
+  let moved = false;
+
+  document.addEventListener("pointerdown", (e) => {
+    moved = false;
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    const t = (e.target as HTMLElement).closest<HTMLElement>(DRAG_SCROLL);
+    if (!t || t.scrollWidth <= t.clientWidth) return;
+    el = t;
+    startX = e.clientX;
+    startLeft = t.scrollLeft;
+    moved = false;
+  });
+
+  document.addEventListener("pointermove", (e) => {
+    if (!el) return;
+    const dx = e.clientX - startX;
+    if (!moved && Math.abs(dx) < 5) return;
+    if (!moved) {
+      moved = true;
+      el.classList.add("dragging"); // на время перетаскивания: без «прилипания» и выделения текста
+    }
+    el.scrollLeft = startLeft - dx;
+    e.preventDefault();
+  });
+
+  const end = () => {
+    if (!el) return;
+    el.classList.remove("dragging");
+    el = null;
+    setTimeout(() => (moved = false), 0); // клик после отпускания уже обработан
+  };
+  document.addEventListener("pointerup", end);
+  document.addEventListener("pointercancel", end);
+
+  // после перетаскивания не считать отпускание кнопки нажатием на дату или фото
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (!moved) return;
+      moved = false;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true,
+  );
+
+  // колёсико мыши над лентой листает её вбок
+  document.addEventListener(
+    "wheel",
+    (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      const t = (e.target as HTMLElement).closest<HTMLElement>(DRAG_SCROLL);
+      if (!t || t.scrollWidth <= t.clientWidth) return;
+      const max = t.scrollWidth - t.clientWidth;
+      if ((e.deltaY < 0 && t.scrollLeft <= 0) || (e.deltaY > 0 && t.scrollLeft >= max - 1)) return;
+      t.scrollLeft += e.deltaY;
+      e.preventDefault();
+    },
+    { passive: false },
+  );
+}
