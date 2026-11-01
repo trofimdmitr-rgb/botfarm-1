@@ -88,7 +88,6 @@ export function BusinessHome(p: {
             p.onBook();
           }}
         >
-          <Icon name="calendar" size={20} />
           {b.services.length ? "Записаться" : "Скоро здесь появится запись"}
         </button>
         {p.boot.next && (

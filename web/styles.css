@@ -335,7 +335,9 @@ html.toned .field-error { background: rgba(229, 72, 77, 0.85); color: #fff; padd
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   background: color-mix(in srgb, var(--bg) 86%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3);
-  border-top: 1px solid var(--sep);
+  border-top: 1px solid color-mix(in srgb, var(--sep) 60%, transparent);
+  box-shadow: 0 -6px 18px -6px rgba(0, 0, 0, 0.22);
+  animation: tabbar-in 0.45s 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .tabbar-item {
   flex: 1; max-width: 140px; display: flex; flex-direction: column; align-items: center; gap: 3px; border: 0; background: none;
@@ -361,3 +363,42 @@ html.tabbar-hidden .tabbar { display: none; }
 .chev { display: inline-grid; transition: transform 0.2s; }
 .chev-down { transform: rotate(90deg); }
 .chev-up { transform: rotate(-90deg); }
+
+/* Кнопка «Записаться» на главной: округлая, без иконки, текст крупнее */
+.btn.btn-cta.btn-big { border-radius: 999px; font-size: 19px; font-weight: 700; padding: 17px 20px; letter-spacing: 0.01em; }
+.btn.btn-cta.btn-big:active { transform: scale(0.98); }
+.btn { transition: transform 0.12s ease, background-color 0.2s; }
+
+/* Анимации: запуск и переходы между разделами — блоки экрана появляются по очереди */
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cover-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
+@keyframes tabbar-in { from { transform: translateY(100%); } to { transform: none; } }
+
+.screen > .page > :not(.toast):not(.lightbox):not(.mainbtn-wrap) { animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.screen > .page > :nth-child(2) { animation-delay: 0.05s; }
+.screen > .page > :nth-child(3) { animation-delay: 0.1s; }
+.screen > .page > :nth-child(4) { animation-delay: 0.15s; }
+.screen > .page > :nth-child(5) { animation-delay: 0.2s; }
+.screen > .page > :nth-child(6) { animation-delay: 0.25s; }
+.screen > .page > :nth-child(n + 7) { animation-delay: 0.3s; }
+.screen .mainbtn-wrap { animation: fade 0.3s 0.15s both; }
+
+/* Главная: баннер плавно проявляется, затем по очереди название, описание, контакты */
+.screen > .page > .hero-cover { animation: none; }
+.screen .hero-cover .cover-img, .screen .hero-cover .cover-blur { animation: cover-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.screen .hero-cover h1 { animation: rise 0.55s 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.screen .hero-cover .hero-text { animation: rise 0.55s 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.screen .hero-cover .hero-actions { animation: rise 0.55s 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.screen > .page-cover > .home-actions { animation-delay: 0.34s; }
+.screen > .page-cover > :nth-child(n + 3) { animation-delay: 0.42s; }
+.screen > .page-cover > :nth-child(n + 4) { animation-delay: 0.5s; }
+.screen > .page-cover > :nth-child(n + 5) { animation-delay: 0.58s; }
+.screen .home-work, .screen .price-row { animation: rise 0.45s 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.screen .home-work:nth-child(2), .screen .price-row:nth-child(2) { animation-delay: 0.56s; }
+.screen .home-work:nth-child(3), .screen .price-row:nth-child(3) { animation-delay: 0.62s; }
+.screen .home-work:nth-child(n + 4), .screen .price-row:nth-child(n + 4) { animation-delay: 0.68s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

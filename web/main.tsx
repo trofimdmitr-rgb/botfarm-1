@@ -91,7 +91,10 @@ function App() {
 
   return (
     <ThemeContext.Provider value={theme}>
-      {screen(boot)}
+      {/* ключ по маршруту: при переходе экран монтируется заново и проигрывает появление */}
+      <div className="screen" key={`${stack.length}:${JSON.stringify(route)}`}>
+        {screen(boot)}
+      </div>
       {showTabs && <ClientTabBar active={clientTab} hasWorks={biz.portfolio.length > 0} onGo={goTab} />}
     </ThemeContext.Provider>
   );
