@@ -24,6 +24,9 @@ import { BackLink, Cell, Empty, ErrorBox, Field, Icon, MainButton, Section, Spin
 
 type Biz = NonNullable<Boot["business"]>;
 
+/** Сколько услуг показывать в прайсе на главной до «Все N». */
+const PRICE_PREVIEW = 5;
+
 export function BusinessHome(p: {
   boot: Boot;
   onBook: (serviceId?: number) => void;
@@ -38,6 +41,7 @@ export function BusinessHome(p: {
   const theme = useTheme();
   const tone = banner && theme ? theme.tone : "";
   const themed = tone ? {} : ({ "--cta-bg": s.accent, "--cta-text": "#fff" } as any);
+  const [allPrices, setAllPrices] = useState(false);
 
   return (
     <div className={`page page-cover ${tone ? "page-toned" : ""}`} style={themed}>
@@ -110,6 +114,43 @@ export function BusinessHome(p: {
             {b.portfolio.slice(0, 8).map((ph, i) => (
               <button key={ph.id} className="home-work" onClick={() => p.onPortfolio(i)}>
                 <img src={photoUrl(ph.id)} alt={ph.caption} loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {b.services.length > 0 && (
+        <section className="home-price">
+          <div className="home-works-head">
+            <span>Прайс</span>
+            {b.services.length > PRICE_PREVIEW && (
+              <button onClick={() => setAllPrices((v) => !v)}>
+                {allPrices ? "Свернуть" : `Все ${b.services.length}`}
+                <span className={`chev ${allPrices ? "chev-up" : "chev-down"}`}>
+                  <Icon name="arrow" size={14} />
+                </span>
+              </button>
+            )}
+          </div>
+          <div className="price-list">
+            {(allPrices ? b.services : b.services.slice(0, PRICE_PREVIEW)).map((svc) => (
+              <button
+                key={svc.id}
+                className="price-row"
+                onClick={() => {
+                  haptic();
+                  p.onBook(svc.id);
+                }}
+              >
+                <span className="price-main">
+                  <span className="price-title">{svc.title}</span>
+                  <span className="price-sub">
+                    {duration(svc.duration_min)}
+                    {svc.description ? ` · ${svc.description}` : ""}
+                  </span>
+                </span>
+                <span className="price-val">{rub(svc.price, svc.price_from)}</span>
               </button>
             ))}
           </div>
