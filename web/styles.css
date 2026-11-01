@@ -74,7 +74,7 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
   mask-image: linear-gradient(to bottom, transparent 38%, #000 72%);
 }
 .hero-cover .cover::after {
-  content: ""; position: absolute; inset: 0;
+  content: ""; position: absolute; inset: 0 0 -2px; z-index: 1;
   background: linear-gradient(to bottom, transparent 42%, color-mix(in srgb, var(--bg) 60%, transparent) 68%, var(--bg) 94%);
 }
 .hero-cover h1, .hero-cover .hero-text, .hero-cover .hero-actions { position: relative; z-index: 1; }
@@ -373,6 +373,7 @@ html.tabbar-hidden .tabbar { display: none; }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cover-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
+@keyframes cover-blur-in { from { opacity: 0; transform: scale(1.19); } to { opacity: 1; transform: scale(1.12); } }
 @keyframes tabbar-in { from { transform: translateY(100%); } to { transform: none; } }
 
 .screen > .page > :not(.toast):not(.lightbox):not(.mainbtn-wrap) { animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
@@ -386,7 +387,10 @@ html.tabbar-hidden .tabbar { display: none; }
 
 /* Главная: баннер плавно проявляется, затем по очереди название, описание, контакты */
 .screen > .page > .hero-cover { animation: none; }
-.screen .hero-cover .cover-img, .screen .hero-cover .cover-blur { animation: cover-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* размытый слой всегда увеличен (scale 1.12), чтобы края размытия уходили за границу баннера —
+   иначе снизу видна тёмная полоска; анимация сохраняет это увеличение */
+.screen .hero-cover .cover-img { animation: cover-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.screen .hero-cover .cover-blur { animation: cover-blur-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .screen .hero-cover h1 { animation: rise 0.55s 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .screen .hero-cover .hero-text { animation: rise 0.55s 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .screen .hero-cover .hero-actions { animation: rise 0.55s 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
@@ -401,4 +405,10 @@ html.tabbar-hidden .tabbar { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* нижний край баннера — сплошной цвет фона поверх всех слоёв, без щелей при масштабировании */
+.hero-cover .cover { isolation: isolate; }
+.hero-cover .cover::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: calc(6% + 2px); z-index: 2; background: var(--bg);
 }
