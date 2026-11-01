@@ -55,6 +55,7 @@ export function BusinessHome(p: {
                 alt=""
               />
               <img className="cover-blur" src={banner} alt="" />
+              <div className="cover-veil" />
             </>
           )}
         </div>

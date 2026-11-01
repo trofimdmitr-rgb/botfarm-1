@@ -372,8 +372,7 @@ html.tabbar-hidden .tabbar { display: none; }
 /* Анимации: запуск и переходы между разделами — блоки экрана появляются по очереди */
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes cover-in { from { opacity: 0; transform: scale(1.06); } to { opacity: 1; transform: none; } }
-@keyframes cover-blur-in { from { opacity: 0; transform: scale(1.19); } to { opacity: 1; transform: scale(1.12); } }
+@keyframes veil-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes tabbar-in { from { transform: translateY(100%); } to { transform: none; } }
 
 .screen > .page > :not(.toast):not(.lightbox):not(.mainbtn-wrap) { animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
@@ -387,10 +386,10 @@ html.tabbar-hidden .tabbar { display: none; }
 
 /* Главная: баннер плавно проявляется, затем по очереди название, описание, контакты */
 .screen > .page > .hero-cover { animation: none; }
-/* размытый слой всегда увеличен (scale 1.12), чтобы края размытия уходили за границу баннера —
-   иначе снизу видна тёмная полоска; анимация сохраняет это увеличение */
-.screen .hero-cover .cover-img { animation: cover-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.screen .hero-cover .cover-blur { animation: cover-blur-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* Баннер проявляется из цвета фона: картинки не двигаются и не масштабируются
+   (масштаб размытого слоя давал в Telegram тонкую полоску снизу) — гаснет только сплошная «вуаль» сверху */
+.cover-veil { position: absolute; inset: -2px; z-index: 3; background: var(--bg); opacity: 0; pointer-events: none; }
+.screen .cover-veil { animation: veil-out 0.8s cubic-bezier(0.4, 0, 0.2, 1) both; }
 .screen .hero-cover h1 { animation: rise 0.55s 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .screen .hero-cover .hero-text { animation: rise 0.55s 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .screen .hero-cover .hero-actions { animation: rise 0.55s 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
