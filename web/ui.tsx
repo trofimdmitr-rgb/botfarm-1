@@ -328,6 +328,9 @@ const ICONS: Record<string, string> = {
   send: "M21 3 10 14M21 3l-7 18-4-7-7-4 18-7Z",
   sparkle: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18",
   mail: "M3 5h18v14H3zM3 6l9 7 9-7",
+  home: "M3.5 11 12 4l8.5 7M6 9.5V20h4.5v-5.5h3V20H18V9.5",
+  calendarPlus: "M5 5h14v15H5zM5 10h14M9 3v4M15 3v4M12 12.5v5M9.5 15h5",
+  list: "M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01",
 };
 export function Icon({ name, size = 18 }: { name: keyof typeof ICONS | string; size?: number }) {
   const filled = name === "pin" || name === "phone";

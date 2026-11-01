@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AdminPanel } from "./admin";
-import { BookFlow, BusinessHome, MyBookings, PortfolioScreen } from "./client";
+import { BookFlow, BusinessHome, ClientTabBar, type ClientTab, MyBookings, PortfolioScreen } from "./client";
 import { api, applyTheme, ensureDevAuth, inTelegram, makeTheme, ThemeContext, urlParams, useBannerTone, WA } from "./lib";
 import { Landing, SuperPanel } from "./platform";
 import type { Boot } from "./types";
@@ -10,9 +10,9 @@ import "./styles.css";
 
 type Route =
   | { name: "home" }
-  | { name: "book"; serviceId?: number }
+  | { name: "book"; serviceId?: number; n?: number }
   | { name: "my" }
-  | { name: "portfolio" }
+  | { name: "portfolio"; open?: number }
   | { name: "admin"; businessId: number }
   | { name: "super" };
 
@@ -78,7 +78,23 @@ function App() {
   const home = () => setStack([{ name: "home" }]);
   const biz = boot.business;
 
-  return <ThemeContext.Provider value={theme}>{screen(boot)}</ThemeContext.Provider>;
+  // нижняя панель клиента — на главной, работах, записи и «Моих записях»
+  const clientTab: ClientTab | null = ["home", "portfolio", "book", "my"].includes(route.name) ? (route.name as ClientTab) : null;
+  const goTab = (t: ClientTab) => {
+    window.scrollTo(0, 0);
+    if (t === "home") {
+      setStack([{ name: "home" }]);
+      if (biz) load({ slug: biz.slug }); // обновить «Ближайшую запись»
+    } else setStack([{ name: "home" }, t === "book" ? { name: "book", n: Date.now() } : { name: t }]);
+  };
+  const showTabs = !!biz && !!clientTab;
+
+  return (
+    <ThemeContext.Provider value={theme}>
+      {screen(boot)}
+      {showTabs && <ClientTabBar active={clientTab} hasWorks={biz.portfolio.length > 0} onGo={goTab} />}
+    </ThemeContext.Provider>
+  );
 
   function screen(boot: Boot) {
   switch (route.name) {
@@ -102,7 +118,7 @@ function App() {
       return <BookFlow key={JSON.stringify(route)} boot={boot} serviceId={route.serviceId} onBack={pop ?? home} onMy={() => setStack([{ name: "home" }, { name: "my" }])} />;
     case "portfolio":
       if (!biz) return null;
-      return <PortfolioScreen boot={boot} onBack={pop ?? home} onBook={() => push({ name: "book" })} />;
+      return <PortfolioScreen boot={boot} onBack={pop ?? home} open={route.open} />;
     case "my":
       if (!biz) return null;
       return <MyBookings boot={boot} onBack={pop ?? home} onBook={() => push({ name: "book" })} />;
@@ -122,7 +138,7 @@ function App() {
           boot={boot}
           onBook={(serviceId) => push({ name: "book", serviceId })}
           onMy={() => push({ name: "my" })}
-          onPortfolio={() => push({ name: "portfolio" })}
+          onPortfolio={(open) => push({ name: "portfolio", open })}
           onAdmin={boot.role ? () => push({ name: "admin", businessId: biz.id }) : undefined}
         />
       );

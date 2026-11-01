@@ -28,7 +28,7 @@ export function BusinessHome(p: {
   boot: Boot;
   onBook: (serviceId?: number) => void;
   onMy: () => void;
-  onPortfolio: () => void;
+  onPortfolio: (open?: number) => void;
   onAdmin?: () => void;
 }) {
   const b = p.boot.business!;
@@ -87,23 +87,34 @@ export function BusinessHome(p: {
           <Icon name="calendar" size={20} />
           {b.services.length ? "Записаться" : "Скоро здесь появится запись"}
         </button>
-        <div className="home-row">
-          {b.portfolio.length > 0 && (
-            <button className="home-tile" onClick={p.onPortfolio}>
-              <Icon name="photo" size={22} />
-              <span className="home-tile-title">Портфолио</span>
-              <span className="home-tile-sub">{b.portfolio.length} фото</span>
-            </button>
-          )}
-          <button className={`home-tile ${p.boot.next ? "home-tile-on" : ""}`} onClick={p.onMy}>
-            <Icon name="calendar" size={22} />
-            <span className="home-tile-title">Мои записи</span>
-            <span className="home-tile-sub">
-              {p.boot.next ? `${fmtDay(p.boot.next.starts_at, b.timezone)}, ${fmtTime(p.boot.next.starts_at, b.timezone)}` : "Отменить или посмотреть"}
+        {p.boot.next && (
+          <button className="home-next" onClick={p.onMy}>
+            <span className="home-next-label">Ближайшая запись</span>
+            <span className="home-next-when">
+              {fmtDay(p.boot.next.starts_at, b.timezone)}, {fmtTime(p.boot.next.starts_at, b.timezone)}
             </span>
+            <span className="home-next-what">{p.boot.next.service_title}</span>
           </button>
-        </div>
+        )}
       </div>
+
+      {b.portfolio.length > 0 && (
+        <section className="home-works">
+          <div className="home-works-head">
+            <span>Работы</span>
+            <button onClick={() => p.onPortfolio()}>
+              Все {b.portfolio.length} <Icon name="arrow" size={14} />
+            </button>
+          </div>
+          <div className="home-works-row">
+            {b.portfolio.slice(0, 8).map((ph, i) => (
+              <button key={ph.id} className="home-work" onClick={() => p.onPortfolio(i)}>
+                <img src={photoUrl(ph.id)} alt={ph.caption} loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {p.onAdmin && (
         <button className="admin-banner" onClick={p.onAdmin}>
@@ -115,16 +126,16 @@ export function BusinessHome(p: {
 }
 
 /** Портфолио на весь экран: сетка, по тапу — фото крупно, листание стрелками/свайпом. */
-export function PortfolioScreen(p: { boot: Boot; onBack: () => void; onBook: () => void }) {
+export function PortfolioScreen(p: { boot: Boot; onBack: () => void; open?: number }) {
   const b = p.boot.business!;
   const photos = b.portfolio;
-  const [open, setOpen] = useState<number | null>(null);
+  const [open, setOpen] = useState<number | null>(p.open ?? null);
   const [touchX, setTouchX] = useState<number | null>(null);
   const go = (d: number) => setOpen((i) => (i === null ? i : (i + d + photos.length) % photos.length));
   return (
     <div className="page">
       <BackLink onBack={p.onBack} />
-      <h2 className="page-title">Портфолио</h2>
+      <h2 className="page-title">Работы</h2>
       {!photos.length && <Empty title="Фото пока нет" />}
       <div className="gallery gallery-grid">
         {photos.map((ph, i) => (
@@ -160,7 +171,6 @@ export function PortfolioScreen(p: { boot: Boot; onBack: () => void; onBook: () 
           )}
         </div>
       )}
-      <MainButton text="Записаться" color={b.settings.accent} onClick={p.onBook} disabled={!b.services.length} />
     </div>
   );
 }
@@ -203,6 +213,11 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
   const [done, setDone] = useState<{ starts_at: string } | null>(null);
 
   const step: Step = done ? "done" : !service ? "service" : !staffChosen ? "staff" : !slot ? "time" : "details";
+  // на шаге с контактами внизу кнопка «Записаться на …» — нижнюю панель прячем
+  useEffect(() => {
+    document.documentElement.classList.toggle("tabbar-hidden", step === "details");
+    return () => document.documentElement.classList.remove("tabbar-hidden");
+  }, [step]);
 
   const back = () => {
     if (step === "details") setSlot(null);
@@ -223,7 +238,11 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
           {s.address && <p className="muted inline-icon"><Icon name="pin" size={14} /> {s.address}</p>}
           <p className="muted">Подтверждение и напоминание придут в чат с ботом.</p>
         </Empty>
-        <MainButton text="Мои записи" color={s.accent} onClick={p.onMy} />
+        <div className="pad">
+          <button className="btn btn-block btn-big btn-cta" onClick={p.onMy}>
+            Мои записи
+          </button>
+        </div>
       </div>
     );
   }
@@ -497,7 +516,6 @@ export function MyBookings(p: { boot: Boot; onBack: () => void; onBook: () => vo
           ))}
         </Section>
       )}
-      <MainButton text="Записаться" color={b.settings.accent} onClick={p.onBook} />
     </div>
   );
 }
@@ -511,4 +529,33 @@ export function StatusBadge({ status, by }: { status: Booking["status"]; by?: Bo
   };
   const [t, c] = map[status];
   return <span className={`badge ${c}`}>{t}</span>;
+}
+
+export type ClientTab = "home" | "portfolio" | "book" | "my";
+
+/** Нижняя панель клиента: Главная · Работы · Запись · Мои записи. */
+export function ClientTabBar(p: { active: ClientTab | null; hasWorks: boolean; onGo: (t: ClientTab) => void }) {
+  const items: [ClientTab, string, string][] = [
+    ["home", "Главная", "home"],
+    ...(p.hasWorks ? ([["portfolio", "Работы", "photo"]] as [ClientTab, string, string][]) : []),
+    ["book", "Запись", "calendarPlus"],
+    ["my", "Мои записи", "list"],
+  ];
+  return (
+    <nav className="tabbar">
+      {items.map(([t, label, icon]) => (
+        <button
+          key={t}
+          className={`tabbar-item ${p.active === t ? "tabbar-on" : ""}`}
+          onClick={() => {
+            haptic();
+            p.onGo(t);
+          }}
+        >
+          <Icon name={icon} size={22} />
+          <span>{label}</span>
+        </button>
+      ))}
+    </nav>
+  );
 }
