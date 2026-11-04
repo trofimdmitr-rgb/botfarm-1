@@ -50,7 +50,7 @@ interface Overview {
   services: Service[];
   staff: Staff[];
   admins: { tg_id: number; role: string; first_name: string | null; username: string | null }[];
-  links: { client: string; admin: string; botStart: string };
+  links: { client: string; admin: string; botStart: string; maxClient?: string; maxAdmin?: string };
 }
 
 type Tab = "bookings" | "services" | "schedule" | "more";
@@ -938,6 +938,18 @@ function ShareLinks({ ov, toast }: Ctx) {
           </a>
         </div>
       )}
+      {ov.links.maxClient && (
+        <>
+          <h2 className="page-title">Ссылка для клиентов в MAX</h2>
+          <p className="muted pad">Для тех, кто пользуется MAX: откроет ту же запись прямо в MAX.</p>
+          <div className="pad">
+            <div className="linkbox">{ov.links.maxClient}</div>
+            <button className="btn btn-secondary btn-block" onClick={async () => (await copy(ov.links.maxClient!)) && toast("Скопировано")}>
+              Копировать
+            </button>
+          </div>
+        </>
+      )}
       <h2 className="page-title">Ссылка на панель управления</h2>
       <p className="muted pad">
         Для вас и ваших администраторов — сохраните её. У остальных она откроет обычную запись, прав не даёт.
@@ -948,6 +960,14 @@ function ShareLinks({ ov, toast }: Ctx) {
         <button className="btn btn-secondary btn-block" onClick={async () => (await copy(ov.links.admin)) && toast("Скопировано")}>
           Копировать
         </button>
+        {ov.links.maxAdmin && (
+          <>
+            <div className="linkbox" style={{ marginTop: 10 }}>{ov.links.maxAdmin}</div>
+            <button className="btn btn-secondary btn-block" onClick={async () => (await copy(ov.links.maxAdmin!)) && toast("Скопировано")}>
+              Копировать ссылку для MAX
+            </button>
+          </>
+        )}
       </div>
     </>
   );

@@ -7,6 +7,10 @@ import { runReminders } from "./cron.js";
 import { dispatch } from "./rpc.js";
 import { UserError } from "./store.js";
 import { rawApi } from "./telegram.js";
+import { timingSafeEqual } from "node:crypto";
+import { decodeMaxStart, fromMaxUserId } from "./max.js";
+
+const maxHelpers = { decodeMaxStart, fromMaxUserId };
 
 const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
@@ -23,6 +27,9 @@ function cronAuthorized(req: Request, url: URL): boolean {
 
 let platformLoadedAt = 0;
 let webhookEnsured = false;
+let maxEnsured = false;
+const maxState: { bot: string | null; webhook: string | null; error: string | null } = { bot: null, webhook: null, error: null };
+const maxWebhookUrl = () => `${config.publicUrl}/api/max`;
 
 /** Раз в минуту: суперадмины из базы и юзернейм бота; на продакшене — самонастройка вебхука. */
 async function refreshPlatform(force = false) {
@@ -45,12 +52,47 @@ async function refreshPlatform(force = false) {
   } catch (e) {
     console.error("bot setup", e);
   }
+  // MAX: включается сам, как только в окружении появляется MAX_BOT_TOKEN
+  if (config.maxBotToken && config.isProduction && !maxEnsured) {
+    try {
+      const { setupMax } = await import("./max.js");
+      Object.assign(maxState, await setupMax(maxWebhookUrl()), { error: null });
+      maxEnsured = true;
+    } catch (e: any) {
+      maxState.error = String(e?.message ?? e).slice(0, 200);
+      console.error("max setup", e);
+    }
+  }
+}
+
+function verifyMaxInit(raw: string) {
+  if (!config.maxBotToken) throw new AuthError("MAX не подключён");
+  const init = verifyInitData(raw, config.maxBotToken);
+  const { decodeMaxStart, fromMaxUserId } = maxHelpers;
+  return { ...init, user: { ...init.user, id: fromMaxUserId(init.user.id) }, startParam: decodeMaxStart(init.startParam).b };
+}
+
+async function maxWebhook(req: Request): Promise<Response> {
+  const got = Buffer.from(req.headers.get("x-max-bot-api-secret") ?? "");
+  const want = Buffer.from(config.maxWebhookSecret);
+  if (!config.maxBotToken || got.length !== want.length || !timingSafeEqual(got, want)) return new Response("forbidden", { status: 403 });
+  const update = await req.json().catch(() => null);
+  try {
+    const { handleMaxUpdate } = await import("./maxbot.js");
+    await handleMaxUpdate(update);
+  } catch (e) {
+    // отвечаем 200 всегда: иначе MAX будет повторять доставку и через 8 часов отключит вебхук
+    console.error("max update", e);
+  }
+  return json({ ok: true });
 }
 
 async function rpc(req: Request): Promise<Response> {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   try {
-    const init = verifyInitData(req.headers.get("x-init-data") ?? "", config.botToken);
+    // мини-апп открыт в MAX — подпись проверяется токеном бота MAX, id пользователя становится отрицательным
+    const maxRaw = req.headers.get("x-max-init-data");
+    const init = maxRaw ? verifyMaxInit(maxRaw) : verifyInitData(req.headers.get("x-init-data") ?? "", config.botToken);
     const body = (await req.json()) as { method?: string; params?: Record<string, unknown> };
     const result = await dispatch(String(body.method ?? ""), body.params ?? {}, { init });
     return json({ result });
@@ -124,6 +166,7 @@ async function status(): Promise<Response> {
     superadmins: config.superadmins.length,
     publicUrl: config.publicUrl,
     production: config.isProduction,
+    max: config.maxBotToken ? { ...maxState, bot: config.maxBotName || maxState.bot } : "не подключён (нет MAX_BOT_TOKEN)",
   });
 }
 
@@ -143,6 +186,8 @@ export async function handle(req: Request): Promise<Response> {
       webhook ??= webhookCallback(getBot(), "std/http", { timeoutMilliseconds: 25_000 });
       return webhook(req);
     }
+    case "max":
+      return maxWebhook(req);
     case "photo":
       return photo(url);
     case "cron":

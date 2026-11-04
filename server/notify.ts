@@ -62,7 +62,7 @@ export async function onBookingCreated(db: Db, biz: Business, b: Booking) {
     b.client_phone && row("Телефон", phoneHtml(b.client_phone)),
     b.comment && row("Комментарий", esc(b.comment)),
     GAP,
-    `<a href="tg://user?id=${b.client_tg_id}">Написать клиенту в Telegram</a>`,
+    b.client_tg_id < 0 ? "<i>Клиент записался через MAX</i>" : `<a href="tg://user?id=${b.client_tg_id}">Написать клиенту в Telegram</a>`,
   ]);
   const adminKb = webAppButton("Открыть записи", webAppUrl({ b: biz.slug, view: "admin" }));
   await Promise.all((await adminRecipients(db, biz.id, b.staff_id)).map((id) => safeSend(id, adminText, adminKb)));

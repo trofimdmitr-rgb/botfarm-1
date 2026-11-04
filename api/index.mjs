@@ -14,6 +14,21 @@ var __export = (target, all) => {
 };
 
 // server/config.ts
+var config_exports = {};
+__export(config_exports, {
+  adminLink: () => adminLink,
+  clientLink: () => clientLink,
+  config: () => config,
+  decodeMaxStart: () => decodeMaxStart,
+  encodeMaxStart: () => encodeMaxStart,
+  inviteLink: () => inviteLink,
+  isProductionHost: () => isProductionHost,
+  maxAdminLink: () => maxAdminLink,
+  maxClientLink: () => maxClientLink,
+  maxInviteLink: () => maxInviteLink,
+  runtime: () => runtime,
+  webAppUrl: () => webAppUrl
+});
 import { createHmac as createHmac2 } from "node:crypto";
 function isProductionHost(host) {
   if (!/^[a-z0-9-]+\.vercel\.app$/.test(host)) return false;
@@ -31,12 +46,20 @@ function webAppUrl(params = {}) {
   const s = q.toString();
   return `${config.publicUrl}/${s ? `?${s}` : ""}`;
 }
-var env, runtime, derived, config, inviteLink, adminLink;
+function encodeMaxStart(p) {
+  return [p.b ?? "", p.view ?? ""].join("__").replace(/__$/, "").replace(/[^\w-]/g, "");
+}
+function decodeMaxStart(s) {
+  if (!s) return {};
+  const [b, view] = s.split("__");
+  return { b: b || void 0, view: view || void 0 };
+}
+var env, runtime, derived, config, inviteLink, adminLink, maxClientLink, maxAdminLink, maxInviteLink;
 var init_config = __esm({
   "server/config.ts"() {
     "use strict";
     env = (k, d = "") => (process.env[k] ?? d).trim();
-    runtime = { botUsername: "", dbSuperadmins: [], requestHost: "" };
+    runtime = { botUsername: "", maxBotName: "", dbSuperadmins: [], requestHost: "" };
     derived = (purpose) => config.botToken ? createHmac2("sha256", config.botToken).update(purpose).digest("base64url").slice(0, 40) : "";
     config = {
       get botToken() {
@@ -50,7 +73,7 @@ var init_config = __esm({
         return env("BOT_APP_NAME");
       },
       get superadmins() {
-        const fromEnv = env("SUPERADMIN_IDS").split(/[,\s]+/).filter(Boolean).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+        const fromEnv = env("SUPERADMIN_IDS").split(/[,\s]+/).filter(Boolean).map(Number).filter((n) => Number.isFinite(n) && n !== 0);
         return [.../* @__PURE__ */ new Set([...fromEnv, ...runtime.dbSuperadmins])];
       },
       /** Адрес сайта: https://xxx.vercel.app */
@@ -61,6 +84,24 @@ var init_config = __esm({
         if (v) return `https://${v}`;
         if (isProductionHost(runtime.requestHost)) return `https://${runtime.requestHost}`;
         return "http://localhost:5173";
+      },
+      /** Токен бота MAX (business.max.ru → чат-боты → интеграция). Без него MAX просто выключен. */
+      get maxBotToken() {
+        return env("MAX_BOT_TOKEN");
+      },
+      /** Ник бота MAX (из GET /me); можно задать явно. */
+      get maxBotName() {
+        return (env("MAX_BOT_USERNAME") || runtime.maxBotName).replace(/^@/, "");
+      },
+      /** Секрет вебхука MAX: 5–256 символов [A-Za-z0-9_-], производный от токена MAX. */
+      get maxWebhookSecret() {
+        const t = env("MAX_BOT_TOKEN");
+        return t ? createHmac2("sha256", t).update("max-webhook").digest("base64url").slice(0, 48) : "";
+      },
+      /** Куда складывать фото, которые мастер из MAX загружает в портфолио (фото хранятся в Telegram). */
+      get tgStorageChat() {
+        const v = Number(env("TG_STORAGE_CHAT_ID"));
+        return Number.isFinite(v) && v !== 0 ? v : config.superadmins.find((id) => id > 0) ?? 0;
       },
       get webhookSecret() {
         return env("WEBHOOK_SECRET") || derived("webhook");
@@ -75,250 +116,18 @@ var init_config = __esm({
     };
     inviteLink = (code) => `https://t.me/${config.botUsername}?start=inv_${code}`;
     adminLink = (slug) => `https://t.me/${config.botUsername}?start=adm_${slug}`;
+    maxClientLink = (slug) => `https://max.ru/${config.maxBotName}?startapp=${encodeMaxStart({ b: slug })}`;
+    maxAdminLink = (slug) => `https://max.ru/${config.maxBotName}?start=adm_${slug}`;
+    maxInviteLink = (code) => `https://max.ru/${config.maxBotName}?start=inv_${code}`;
   }
 });
-
-// server/format.ts
-import { DateTime } from "luxon";
-function fmtWhen(at, tz) {
-  return DateTime.fromJSDate(new Date(at)).setZone(tz).setLocale("ru").toFormat("ccc, d MMMM, HH:mm");
-}
-function fmtTime(at, tz) {
-  return DateTime.fromJSDate(new Date(at)).setZone(tz).toFormat("HH:mm");
-}
-function relDay(at, tz, now = /* @__PURE__ */ new Date()) {
-  const d = DateTime.fromJSDate(new Date(at)).setZone(tz).startOf("day");
-  const t = DateTime.fromJSDate(now).setZone(tz).startOf("day");
-  const diff = Math.round(d.diff(t, "days").days);
-  if (diff === 0) return "\u0441\u0435\u0433\u043E\u0434\u043D\u044F";
-  if (diff === 1) return "\u0437\u0430\u0432\u0442\u0440\u0430";
-  return d.setLocale("ru").toFormat("ccc, d MMMM");
-}
-var esc, rub;
-var init_format = __esm({
-  "server/format.ts"() {
-    "use strict";
-    esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    rub = (n, from = false) => n === 0 ? "\u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E" : `${from ? "\u043E\u0442\xA0" : ""}${n.toLocaleString("ru-RU")}\xA0\u20BD`;
-  }
-});
-
-// server/telegram.ts
-import { Api } from "grammy";
-function rawApi() {
-  api ??= new Api(config.botToken);
-  return api;
-}
-function tg() {
-  if (override) return override;
-  const a = rawApi();
-  return {
-    sendMessage: (chatId, html, extra) => a.sendMessage(chatId, html, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...extra }),
-    sendPhoto: async (chatId, photo2, caption) => {
-      const { InputFile } = await import("grammy");
-      const msg = await a.sendPhoto(chatId, new InputFile(photo2), { caption });
-      const sizes = msg.photo ?? [];
-      return { file_id: sizes[sizes.length - 1].file_id };
-    },
-    setChatMenuButton: (chatId, text, url) => a.setChatMenuButton({ chat_id: chatId, menu_button: { type: "web_app", text, web_app: { url } } })
-  };
-}
-function isBlockedError(e) {
-  const err = e;
-  return err?.error_code === 403 || /blocked|chat not found|deactivated/i.test(err?.description ?? "");
-}
-var override, api;
-var init_telegram = __esm({
-  "server/telegram.ts"() {
-    "use strict";
-    init_config();
-    override = null;
-    api = null;
-  }
-});
-
-// server/notify.ts
-var notify_exports = {};
-__export(notify_exports, {
-  broadcast: () => broadcast,
-  notifySuperadmins: () => notifySuperadmins,
-  onBookingCancelled: () => onBookingCancelled,
-  onBookingCreated: () => onBookingCreated,
-  sendReminder: () => sendReminder
-});
-async function safeSend(chatId, html, extra) {
-  try {
-    await tg().sendMessage(chatId, html, extra);
-    return true;
-  } catch (e) {
-    if (!isBlockedError(e)) console.error("sendMessage", chatId, e);
-    return false;
-  }
-}
-async function adminRecipients(db2, businessId, staffId) {
-  const rows = await db2.query(
-    `select tg_id from business_admins where business_id = $1
-     union select tg_id from staff where id = $2 and tg_id is not null`,
-    [businessId, staffId ?? 0]
-  );
-  return rows.map((r) => Number(r.tg_id));
-}
-function bookingCard(b, biz, staffName2) {
-  const lines = [
-    `<b>${esc(fmtWhen(b.starts_at, biz.timezone))}</b>`,
-    `${esc(b.service_title)}${b.price ? ` \u2014 ${rub(b.price)}` : ""}`,
-    staffName2 && biz.settings.chooseStaff ? row(biz.settings.labels.staff, esc(staffName2)) : "",
-    ...biz.settings.fields.filter((f) => b.answers?.[f.key]).map((f) => row(f.label, esc(b.answers[f.key])))
-  ].filter(Boolean);
-  return `<blockquote>${lines.join("\n")}</blockquote>`;
-}
-async function onBookingCreated(db2, biz, b) {
-  const sName = await staffName(db2, b.staff_id);
-  const adminText = join([
-    `<b>\u041D\u043E\u0432\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C</b> \xB7 ${esc(biz.name)}`,
-    bookingCard(b, biz, sName),
-    row("\u041A\u043B\u0438\u0435\u043D\u0442", `<b>${esc(b.client_name)}</b>`),
-    b.client_phone && row("\u0422\u0435\u043B\u0435\u0444\u043E\u043D", phoneHtml(b.client_phone)),
-    b.comment && row("\u041A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u0439", esc(b.comment)),
-    GAP,
-    `<a href="tg://user?id=${b.client_tg_id}">\u041D\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u043A\u043B\u0438\u0435\u043D\u0442\u0443 \u0432 Telegram</a>`
-  ]);
-  const adminKb = webAppButton("\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "admin" }));
-  await Promise.all((await adminRecipients(db2, biz.id, b.staff_id)).map((id) => safeSend(id, adminText, adminKb)));
-  const clientText = join([
-    `<b>\u0412\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u043D\u044B</b> \xB7 ${esc(biz.name)}`,
-    bookingCard(b, biz, sName),
-    biz.settings.address && row("\u0410\u0434\u0440\u0435\u0441", esc(biz.settings.address)),
-    biz.settings.contactPhone && row("\u0422\u0435\u043B\u0435\u0444\u043E\u043D", phoneHtml(biz.settings.contactPhone)),
-    biz.settings.afterBookingText && GAP,
-    biz.settings.afterBookingText && `<i>${esc(biz.settings.afterBookingText)}</i>`
-  ]);
-  await safeSend(b.client_tg_id, clientText, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
-}
-async function onBookingCancelled(db2, biz, b) {
-  const sName = await staffName(db2, b.staff_id);
-  if (b.cancelled_by === "client") {
-    const text = join([
-      `<b>\u041A\u043B\u0438\u0435\u043D\u0442 \u043E\u0442\u043C\u0435\u043D\u0438\u043B \u0437\u0430\u043F\u0438\u0441\u044C</b> \xB7 ${esc(biz.name)}`,
-      `<blockquote><s>${esc(fmtWhen(b.starts_at, biz.timezone))}</s>
-${esc(b.service_title)}</blockquote>`,
-      row("\u041A\u043B\u0438\u0435\u043D\u0442", `<b>${esc(b.client_name)}</b>`),
-      b.client_phone && row("\u0422\u0435\u043B\u0435\u0444\u043E\u043D", phoneHtml(b.client_phone)),
-      GAP,
-      "<i>\u042D\u0442\u043E \u0432\u0440\u0435\u043C\u044F \u0441\u043D\u043E\u0432\u0430 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E \u0434\u043B\u044F \u0437\u0430\u043F\u0438\u0441\u0438.</i>"
-    ]);
-    await Promise.all((await adminRecipients(db2, biz.id, b.staff_id)).map((id) => safeSend(id, text)));
-  } else {
-    const text = join([
-      `<b>\u0417\u0430\u043F\u0438\u0441\u044C \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430</b> \xB7 ${esc(biz.name)}`,
-      `<blockquote><s>${esc(fmtWhen(b.starts_at, biz.timezone))}</s>
-${esc(b.service_title)}</blockquote>`,
-      "\u0418\u0437\u0432\u0438\u043D\u0438\u0442\u0435 \u0437\u0430 \u043D\u0435\u0443\u0434\u043E\u0431\u0441\u0442\u0432\u043E. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435, \u043F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0434\u0440\u0443\u0433\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0443\u0434\u0435\u043C \u0440\u0430\u0434\u044B \u0432\u0430\u0441 \u0432\u0438\u0434\u0435\u0442\u044C."
-    ]);
-    await safeSend(b.client_tg_id, text, webAppButton("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u0441\u043D\u043E\u0432\u0430", webAppUrl({ b: biz.slug })));
-  }
-}
-async function sendReminder(biz, b, kind, now = /* @__PURE__ */ new Date()) {
-  const when = `${relDay(b.starts_at, biz.timezone, now)} \u0432 ${fmtTime(b.starts_at, biz.timezone)}`;
-  const text = join([
-    kind === "2h" ? `<b>\u0421\u043A\u043E\u0440\u043E \u0432\u0438\u0437\u0438\u0442 \u2014 ${esc(when)}</b>` : `<b>\u041D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u0435\u043C \u043E \u0437\u0430\u043F\u0438\u0441\u0438 \u2014 ${esc(when)}</b>`,
-    `<blockquote>${esc(biz.name)}
-${esc(b.service_title)}</blockquote>`,
-    biz.settings.address && row("\u0410\u0434\u0440\u0435\u0441", esc(biz.settings.address)),
-    GAP,
-    kind === "24h" ? "<i>\u0415\u0441\u043B\u0438 \u043F\u043B\u0430\u043D\u044B \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0438\u0441\u044C \u2014 \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u0435 \u0437\u0430\u043F\u0438\u0441\u044C, \u0447\u0442\u043E\u0431\u044B \u0432\u0440\u0435\u043C\u044F \u0434\u043E\u0441\u0442\u0430\u043B\u043E\u0441\u044C \u0434\u0440\u0443\u0433\u043E\u043C\u0443.</i>" : "\u0414\u043E \u0432\u0441\u0442\u0440\u0435\u0447\u0438!"
-  ]);
-  return safeSend(b.client_tg_id, text, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
-}
-async function notifySuperadmins(html) {
-  await Promise.all(config.superadmins.map((id) => safeSend(id, html)));
-}
-async function broadcast(db2, biz, text) {
-  const clients = await db2.query(
-    `select tg_id from clients where business_id = $1 and not blocked_bot order by last_seen desc limit 2000`,
-    [biz.id]
-  );
-  const html = `<b>${esc(biz.name)}</b>
-
-${esc(text)}`;
-  const kb = webAppButton("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", webAppUrl({ b: biz.slug }));
-  let sent = 0;
-  let failed = 0;
-  const blocked = [];
-  for (let i = 0; i < clients.length; i += 25) {
-    const batch = clients.slice(i, i + 25);
-    const res = await Promise.all(batch.map((c) => safeSend(Number(c.tg_id), html, kb)));
-    res.forEach((ok, j) => {
-      if (ok) sent++;
-      else {
-        failed++;
-        blocked.push(Number(batch[j].tg_id));
-      }
-    });
-    if (i + 25 < clients.length) await new Promise((r) => setTimeout(r, 1100));
-  }
-  if (blocked.length) {
-    await db2.query(`update clients set blocked_bot = true where business_id = $1 and tg_id = any($2::bigint[])`, [
-      biz.id,
-      blocked
-    ]);
-  }
-  return { sent, failed };
-}
-var webAppButton, row, phoneHtml, staffName, GAP, join;
-var init_notify = __esm({
-  "server/notify.ts"() {
-    "use strict";
-    init_config();
-    init_format();
-    init_telegram();
-    webAppButton = (text, url) => ({ reply_markup: { inline_keyboard: [[{ text, web_app: { url } }]] } });
-    row = (label, value) => `<i>${esc(label)}:</i> ${value}`;
-    phoneHtml = (p) => `<code>${esc(p)}</code>`;
-    staffName = async (db2, id) => (await db2.query(`select name from staff where id = $1`, [id]))[0]?.name;
-    GAP = "\0";
-    join = (parts) => parts.filter((x) => typeof x === "string" && x !== "").map((x) => x === GAP ? "" : x).join("\n");
-  }
-});
-
-// server/handler.ts
-import { webhookCallback } from "grammy";
-
-// server/auth.ts
-import { createHmac, timingSafeEqual } from "node:crypto";
-var AuthError = class extends Error {
-};
-var MAX_AGE_SEC = 7 * 24 * 3600;
-function verifyInitData(raw, botToken, nowMs = Date.now()) {
-  if (!raw) throw new AuthError("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445 \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u0438");
-  const params = new URLSearchParams(raw);
-  const hash = params.get("hash");
-  if (!hash) throw new AuthError("\u041D\u0435\u0442 \u043F\u043E\u0434\u043F\u0438\u0441\u0438");
-  params.delete("hash");
-  const dataCheck = [...params.entries()].map(([k, v]) => `${k}=${v}`).sort().join("\n");
-  const secret = createHmac("sha256", "WebAppData").update(botToken).digest();
-  const expected = createHmac("sha256", secret).update(dataCheck).digest();
-  const given = Buffer.from(hash, "hex");
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
-    throw new AuthError("\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u043F\u043E\u0434\u043F\u0438\u0441\u044C");
-  }
-  const authDate = Number(params.get("auth_date"));
-  if (!authDate || nowMs / 1e3 - authDate > MAX_AGE_SEC) throw new AuthError("\u0421\u0435\u0441\u0441\u0438\u044F \u0443\u0441\u0442\u0430\u0440\u0435\u043B\u0430, \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0437\u0430\u043D\u043E\u0432\u043E");
-  const userRaw = params.get("user");
-  if (!userRaw) throw new AuthError("\u041D\u0435\u0442 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F");
-  const user = JSON.parse(userRaw);
-  return { user, startParam: params.get("start_param") ?? void 0, authDate };
-}
-
-// server/bot.ts
-init_config();
-import { Bot, InlineKeyboard } from "grammy";
-
-// server/db.ts
-import postgres from "postgres";
 
 // server/schema.gen.ts
-var SCHEMA_SQL = `-- BotFarm: \u0441\u0445\u0435\u043C\u0430. \u0412\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u0432 \u043D\u043E\u0432\u043E\u043C \u043F\u0440\u043E\u0435\u043A\u0442\u0435 Supabase.
+var SCHEMA_SQL;
+var init_schema_gen = __esm({
+  "server/schema.gen.ts"() {
+    "use strict";
+    SCHEMA_SQL = `-- BotFarm: \u0441\u0445\u0435\u043C\u0430. \u0412\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u0432 \u043D\u043E\u0432\u043E\u043C \u043F\u0440\u043E\u0435\u043A\u0442\u0435 Supabase.
 create extension if not exists btree_gist;
 
 create table if not exists users (
@@ -470,9 +279,11 @@ alter table clients enable row level security;
 alter table portfolio enable row level security;
 alter table platform_admins enable row level security;
 `;
+  }
+});
 
 // server/db.ts
-var current = null;
+import postgres from "postgres";
 function resolveDatabaseUrl(env2 = process.env) {
   const raw = (env2.DATABASE_URL || env2.POSTGRES_URL || "").trim();
   if (!raw) return null;
@@ -503,10 +314,6 @@ function db() {
   current = wrapPostgres(sql, ready);
   return current;
 }
-var DEFAULT_SUPERADMINS = [
-  [8181483439, "\u0410\u043D\u0442\u043E\u043D"],
-  [2015823821, "\u0414\u043C\u0438\u0442\u0440\u0438\u0439"]
-];
 async function ensureSchema(sql) {
   const [row2] = await sql.unsafe(`select to_regclass('businesses') is not null as ok`);
   if (row2?.ok) return;
@@ -536,12 +343,45 @@ function isOverlapError(e) {
   const err = e;
   return err?.code === "23P01" || /bookings_no_overlap/.test(err?.message ?? "");
 }
+var current, DEFAULT_SUPERADMINS;
+var init_db = __esm({
+  "server/db.ts"() {
+    "use strict";
+    init_schema_gen();
+    current = null;
+    DEFAULT_SUPERADMINS = [
+      [8181483439, "\u0410\u043D\u0442\u043E\u043D"],
+      [2015823821, "\u0414\u043C\u0438\u0442\u0440\u0438\u0439"]
+    ];
+  }
+});
 
-// server/bot.ts
-init_format();
+// server/format.ts
+import { DateTime } from "luxon";
+function fmtWhen(at, tz) {
+  return DateTime.fromJSDate(new Date(at)).setZone(tz).setLocale("ru").toFormat("ccc, d MMMM, HH:mm");
+}
+function fmtTime(at, tz) {
+  return DateTime.fromJSDate(new Date(at)).setZone(tz).toFormat("HH:mm");
+}
+function relDay(at, tz, now = /* @__PURE__ */ new Date()) {
+  const d = DateTime.fromJSDate(new Date(at)).setZone(tz).startOf("day");
+  const t = DateTime.fromJSDate(now).setZone(tz).startOf("day");
+  const diff = Math.round(d.diff(t, "days").days);
+  if (diff === 0) return "\u0441\u0435\u0433\u043E\u0434\u043D\u044F";
+  if (diff === 1) return "\u0437\u0430\u0432\u0442\u0440\u0430";
+  return d.setLocale("ru").toFormat("ccc, d MMMM");
+}
+var esc, rub;
+var init_format = __esm({
+  "server/format.ts"() {
+    "use strict";
+    esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    rub = (n, from = false) => n === 0 ? "\u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E" : `${from ? "\u043E\u0442\xA0" : ""}${n.toLocaleString("ru-RU")}\xA0\u20BD`;
+  }
+});
 
 // server/phone.ts
-var PHONE_ERROR = "\u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043D\u043E\u043C\u0435\u0440 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0430 \u2014 \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440, +7 999 123-45-67";
 function formatRu(d) {
   return `+7 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9, 11)}`;
 }
@@ -573,14 +413,16 @@ function checkPhone(raw) {
   }
   return { ok: true, phone: `+${d}` };
 }
-
-// server/store.ts
-import { randomBytes } from "node:crypto";
-import { DateTime as DateTime3 } from "luxon";
+var PHONE_ERROR;
+var init_phone = __esm({
+  "server/phone.ts"() {
+    "use strict";
+    PHONE_ERROR = "\u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043D\u043E\u043C\u0435\u0440 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0430 \u2014 \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440, +7 999 123-45-67";
+  }
+});
 
 // server/slots.ts
 import { DateTime as DateTime2 } from "luxon";
-var toMs = (v) => v instanceof Date ? v.getTime() : Date.parse(v);
 function parseHM(day, hm) {
   const [h, m] = hm.split(":").map(Number);
   return day.set({ hour: h, minute: m, second: 0, millisecond: 0 });
@@ -622,175 +464,187 @@ function dayBoundsUtc(date, tz) {
   const d = DateTime2.fromISO(date, { zone: tz }).startOf("day");
   return { from: d.toUTC().toISO(), to: d.plus({ days: 1 }).toUTC().toISO() };
 }
+var toMs;
+var init_slots = __esm({
+  "server/slots.ts"() {
+    "use strict";
+    toMs = (v) => v instanceof Date ? v.getTime() : Date.parse(v);
+  }
+});
 
 // server/templates.ts
-var weekdays = (from, to, days = [1, 2, 3, 4, 5]) => Object.fromEntries(days.map((d) => [String(d), [[from, to]]]));
-var baseSettings = (over) => ({
-  emoji: "\u2728",
-  accent: "#2481cc",
-  description: "",
-  address: "",
-  contactPhone: "",
-  links: [],
-  welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0434\u0435\u0441\u044C \u043C\u043E\u0436\u043D\u043E \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043E\u043D\u043B\u0430\u0439\u043D \u0432 \u043F\u0430\u0440\u0443 \u043A\u0430\u0441\u0430\u043D\u0438\u0439.",
-  afterBookingText: "",
-  labels: { staff: "\u041C\u0430\u0441\u0442\u0435\u0440", staffPlural: "\u041C\u0430\u0441\u0442\u0435\u0440\u0430", service: "\u0423\u0441\u043B\u0443\u0433\u0430" },
-  stepMin: 30,
-  minLeadMin: 60,
-  maxDaysAhead: 30,
-  cancelHours: 3,
-  chooseStaff: false,
-  requirePhone: true,
-  remind2h: true,
-  fields: [],
-  bannerFileId: "",
-  bannerColor: "",
-  ...over
-});
-var TEMPLATES = [
-  {
-    id: "beauty",
-    title: "\u0411\u044C\u044E\u0442\u0438-\u043C\u0430\u0441\u0442\u0435\u0440",
-    emoji: "\u{1F485}",
-    pitch: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440, \u043F\u0435\u0434\u0438\u043A\u044E\u0440, \u0431\u0440\u043E\u0432\u0438, \u0440\u0435\u0441\u043D\u0438\u0446\u044B. \u041E\u0434\u0438\u043D \u043C\u0430\u0441\u0442\u0435\u0440, \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E, \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F.",
-    settings: baseSettings({
-      emoji: "\u{1F485}",
-      accent: "#d6457b",
-      description: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440, \u043F\u0435\u0434\u0438\u043A\u044E\u0440 \u0438 \u0431\u0440\u043E\u0432\u0438. \u0417\u0430\u043F\u0438\u0441\u044C \u043E\u043D\u043B\u0430\u0439\u043D 24/7 \u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443 \u0438 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E\u0435 \u043E\u043A\u043E\u0448\u043A\u043E.",
-      welcome: "\u041F\u0440\u0438\u0432\u0435\u0442! \u042F \u043C\u0430\u0441\u0442\u0435\u0440 \u043D\u043E\u0433\u0442\u0435\u0432\u043E\u0433\u043E \u0441\u0435\u0440\u0432\u0438\u0441\u0430. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u044F \u043F\u0440\u0438\u0448\u043B\u044E \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435 \u043D\u0430\u043A\u0430\u043D\u0443\u043D\u0435.",
-      afterBookingText: "\u0415\u0441\u043B\u0438 \u043F\u043B\u0430\u043D\u044B \u0438\u0437\u043C\u0435\u043D\u044F\u0442\u0441\u044F \u2014 \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u0435 \u0437\u0430\u043F\u0438\u0441\u044C \u0432 \xAB\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438\xBB, \u0447\u0442\u043E\u0431\u044B \u043E\u043A\u043E\u0448\u043A\u043E \u0434\u043E\u0441\u0442\u0430\u043B\u043E\u0441\u044C \u0434\u0440\u0443\u0433\u043E\u043C\u0443.",
-      fields: [{ key: "wish", label: "\u041F\u043E\u0436\u0435\u043B\u0430\u043D\u0438\u044F \u043F\u043E \u0434\u0438\u0437\u0430\u0439\u043D\u0443", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: \u043D\u044E\u0434, \u043A\u043E\u0440\u043E\u0442\u043A\u0430\u044F \u0434\u043B\u0438\u043D\u0430", required: false }]
-    }),
-    staff: [{ name: "\u041C\u0430\u0441\u0442\u0435\u0440", work_hours: weekdays("10:00", "20:00", [1, 2, 3, 4, 5, 6]) }],
-    services: [
-      { title: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440 \u0441 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u0435\u043C \u0433\u0435\u043B\u044C-\u043B\u0430\u043A", price: 1800, duration_min: 120 },
-      { title: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440 \u0431\u0435\u0437 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u044F", price: 900, duration_min: 60 },
-      { title: "\u041D\u0430\u0440\u0430\u0449\u0438\u0432\u0430\u043D\u0438\u0435 \u043D\u043E\u0433\u0442\u0435\u0439", price: 2800, price_from: true, duration_min: 180 },
-      { title: "\u041F\u0435\u0434\u0438\u043A\u044E\u0440 \u0441 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u0435\u043C", price: 2200, duration_min: 120 },
-      { title: "\u041A\u043E\u0440\u0440\u0435\u043A\u0446\u0438\u044F \u0438 \u043E\u043A\u0440\u0430\u0448\u0438\u0432\u0430\u043D\u0438\u0435 \u0431\u0440\u043E\u0432\u0435\u0439", price: 1200, duration_min: 60 },
-      { title: "\u0421\u043D\u044F\u0442\u0438\u0435 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u044F", price: 400, duration_min: 30 }
-    ]
-  },
-  {
-    id: "barber",
-    title: "\u0411\u0430\u0440\u0431\u0435\u0440\u0448\u043E\u043F / \u043F\u0430\u0440\u0438\u043A\u043C\u0430\u0445\u0435\u0440",
-    emoji: "\u{1F488}",
-    pitch: "\u041D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u043E\u0432, \u0432\u044B\u0431\u043E\u0440 \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u0438\u043B\u0438 \xAB\u043B\u044E\u0431\u043E\u0439 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0439\xBB.",
-    settings: baseSettings({
-      emoji: "\u{1F488}",
-      accent: "#b7791f",
-      description: "\u041C\u0443\u0436\u0441\u043A\u0438\u0435 \u0441\u0442\u0440\u0438\u0436\u043A\u0438 \u0438 \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u0435 \u0431\u043E\u0440\u043E\u0434\u044B. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F.",
-      welcome: "\u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C! \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443, \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u0438 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0435\u0437 \u0437\u0432\u043E\u043D\u043A\u043E\u0432 \u0438 \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u044F.",
-      chooseStaff: true,
-      stepMin: 15,
-      minLeadMin: 30,
-      maxDaysAhead: 21,
-      cancelHours: 2
-    }),
-    staff: [
-      { name: "\u0410\u043B\u0435\u043A\u0441\u0435\u0439", description: "\u0422\u043E\u043F-\u0431\u0430\u0440\u0431\u0435\u0440", work_hours: weekdays("10:00", "21:00", [1, 2, 3, 4, 5, 6, 7]) },
-      { name: "\u0414\u043C\u0438\u0442\u0440\u0438\u0439", description: "\u0411\u0430\u0440\u0431\u0435\u0440", work_hours: weekdays("12:00", "21:00", [2, 3, 4, 5, 6]) }
-    ],
-    services: [
-      { title: "\u041C\u0443\u0436\u0441\u043A\u0430\u044F \u0441\u0442\u0440\u0438\u0436\u043A\u0430", price: 1200, duration_min: 45 },
-      { title: "\u0421\u0442\u0440\u0438\u0436\u043A\u0430 \u043C\u0430\u0448\u0438\u043D\u043A\u043E\u0439", price: 700, duration_min: 30 },
-      { title: "\u041E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u0435 \u0431\u043E\u0440\u043E\u0434\u044B", price: 800, duration_min: 30 },
-      { title: "\u0421\u0442\u0440\u0438\u0436\u043A\u0430 + \u0431\u043E\u0440\u043E\u0434\u0430", price: 1800, duration_min: 75 },
-      { title: "\u0414\u0435\u0442\u0441\u043A\u0430\u044F \u0441\u0442\u0440\u0438\u0436\u043A\u0430", price: 900, duration_min: 30 }
-    ]
-  },
-  {
-    id: "tutor",
-    title: "\u0420\u0435\u043F\u0435\u0442\u0438\u0442\u043E\u0440 / \u043F\u0441\u0438\u0445\u043E\u043B\u043E\u0433 / \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u043D\u0442",
-    emoji: "\u{1F393}",
-    pitch: "\u0417\u0430\u043D\u044F\u0442\u0438\u044F \u0438 \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u0446\u0438\u0438 \u043E\u043D\u043B\u0430\u0439\u043D \u0438\u043B\u0438 \u043E\u0447\u043D\u043E, \u0430\u043D\u043A\u0435\u0442\u0430 \u0441 \u0446\u0435\u043B\u044C\u044E.",
-    settings: baseSettings({
-      emoji: "\u{1F393}",
-      accent: "#4f46e5",
-      description: "\u0418\u043D\u0434\u0438\u0432\u0438\u0434\u0443\u0430\u043B\u044C\u043D\u044B\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u044F \u043E\u043D\u043B\u0430\u0439\u043D \u0438 \u043E\u0447\u043D\u043E. \u041F\u0435\u0440\u0432\u043E\u0435 \u043F\u0440\u043E\u0431\u043D\u043E\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u0435 \u2014 \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E.",
-      welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0444\u043E\u0440\u043C\u0430\u0442 \u0437\u0430\u043D\u044F\u0442\u0438\u044F \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F. \u0421\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u0441\u043E\u0437\u0432\u043E\u043D \u043F\u0440\u0438\u0448\u043B\u044E \u043F\u0435\u0440\u0435\u0434 \u043D\u0430\u0447\u0430\u043B\u043E\u043C.",
-      afterBookingText: "\u0417\u0430\u043D\u044F\u0442\u0438\u0435 \u043F\u0440\u043E\u0445\u043E\u0434\u0438\u0442 \u043E\u043D\u043B\u0430\u0439\u043D. \u0421\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u0441\u043E\u0437\u0432\u043E\u043D \u043F\u0440\u0438\u0448\u043B\u044E \u0432 \u044D\u0442\u043E\u0442 \u0447\u0430\u0442 \u043F\u0435\u0440\u0435\u0434 \u043D\u0430\u0447\u0430\u043B\u043E\u043C.",
-      labels: { staff: "\u041F\u0440\u0435\u043F\u043E\u0434\u0430\u0432\u0430\u0442\u0435\u043B\u044C", staffPlural: "\u041F\u0440\u0435\u043F\u043E\u0434\u0430\u0432\u0430\u0442\u0435\u043B\u0438", service: "\u0417\u0430\u043D\u044F\u0442\u0438\u0435" },
-      stepMin: 60,
-      minLeadMin: 180,
-      cancelHours: 12,
-      fields: [
-        { key: "goal", label: "\u041A\u043B\u0430\u0441\u0441 / \u0446\u0435\u043B\u044C \u0437\u0430\u043D\u044F\u0442\u0438\u0439", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: 9 \u043A\u043B\u0430\u0441\u0441, \u041E\u0413\u042D \u043F\u043E \u043C\u0430\u0442\u0435\u043C\u0430\u0442\u0438\u043A\u0435", required: true }
-      ]
-    }),
-    staff: [{ name: "\u041F\u0440\u0435\u043F\u043E\u0434\u0430\u0432\u0430\u0442\u0435\u043B\u044C", work_hours: weekdays("15:00", "21:00") }],
-    services: [
-      { title: "\u041F\u0440\u043E\u0431\u043D\u043E\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u0435", price: 0, duration_min: 30 },
-      { title: "\u0418\u043D\u0434\u0438\u0432\u0438\u0434\u0443\u0430\u043B\u044C\u043D\u043E\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u0435", price: 1500, duration_min: 60 },
-      { title: "\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430 \u043A \u044D\u043A\u0437\u0430\u043C\u0435\u043D\u0443", price: 2e3, duration_min: 90 },
-      { title: "\u041F\u0430\u043A\u0435\u0442 4 \u0437\u0430\u043D\u044F\u0442\u0438\u044F", price: 5400, duration_min: 60, description: "\u041E\u043F\u043B\u0430\u0442\u0430 \u0437\u0430 \u043C\u0435\u0441\u044F\u0446 \u0432\u043F\u0435\u0440\u0451\u0434" }
-    ]
-  },
-  {
-    id: "wellness",
-    title: "\u041C\u0430\u0441\u0441\u0430\u0436 / \u0442\u0440\u0435\u043D\u0435\u0440 / SPA",
-    emoji: "\u{1F9D8}",
-    pitch: "\u0421\u0435\u0430\u043D\u0441\u044B 60/90 \u043C\u0438\u043D\u0443\u0442, \u043F\u043E\u0436\u0435\u043B\u0430\u043D\u0438\u044F \u043A\u043B\u0438\u0435\u043D\u0442\u0430, \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F.",
-    settings: baseSettings({
-      emoji: "\u{1F9D8}",
-      accent: "#0f9d76",
-      description: "\u041C\u0430\u0441\u0441\u0430\u0436 \u0438 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u044C\u043D\u044B\u0435 \u0442\u0440\u0435\u043D\u0438\u0440\u043E\u0432\u043A\u0438. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0441\u0435\u0430\u043D\u0441 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F.",
-      welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435\u0441\u044C \u043D\u0430 \u0441\u0435\u0430\u043D\u0441 \u0432 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u043D\u0430\u043F\u043E\u043C\u043D\u044E \u043D\u0430\u043A\u0430\u043D\u0443\u043D\u0435.",
-      labels: { staff: "\u0421\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442", staffPlural: "\u0421\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442\u044B", service: "\u0421\u0435\u0430\u043D\u0441" },
-      cancelHours: 6,
-      fields: [{ key: "wish", label: "\u041F\u043E\u0436\u0435\u043B\u0430\u043D\u0438\u044F \u0438\u043B\u0438 \u0437\u043E\u043D\u044B \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u044F", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: \u0448\u0435\u044F \u0438 \u043F\u043B\u0435\u0447\u0438", required: false }]
-    }),
-    staff: [{ name: "\u0421\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442", work_hours: weekdays("09:00", "21:00", [1, 2, 3, 4, 5, 6]) }],
-    services: [
-      { title: "\u041A\u043B\u0430\u0441\u0441\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u043C\u0430\u0441\u0441\u0430\u0436", price: 2500, duration_min: 60 },
-      { title: "\u041C\u0430\u0441\u0441\u0430\u0436 \u0441\u043F\u0438\u043D\u044B \u0438 \u0448\u0435\u0438", price: 1500, duration_min: 30 },
-      { title: "\u0410\u043D\u0442\u0438\u0446\u0435\u043B\u043B\u044E\u043B\u0438\u0442\u043D\u044B\u0439 \u043C\u0430\u0441\u0441\u0430\u0436", price: 2800, duration_min: 60 },
-      { title: "\u041F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u044C\u043D\u0430\u044F \u0442\u0440\u0435\u043D\u0438\u0440\u043E\u0432\u043A\u0430", price: 2e3, duration_min: 60 },
-      { title: "SPA-\u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u0430", price: 4500, duration_min: 90 }
-    ]
-  },
-  {
-    id: "auto",
-    title: "\u0410\u0432\u0442\u043E: \u0434\u0435\u0442\u0435\u0439\u043B\u0438\u043D\u0433 / \u0448\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436 / \u0441\u0435\u0440\u0432\u0438\u0441",
-    emoji: "\u{1F697}",
-    pitch: "\u0414\u043B\u0438\u043D\u043D\u044B\u0435 \u0440\u0430\u0431\u043E\u0442\u044B, \u0434\u0430\u043D\u043D\u044B\u0435 \u0430\u0432\u0442\u043E \u0432 \u0430\u043D\u043A\u0435\u0442\u0435, \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0431\u043E\u043A\u0441\u043E\u0432.",
-    settings: baseSettings({
-      emoji: "\u{1F697}",
-      accent: "#e8590c",
-      description: "\u0428\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436, \u043C\u043E\u0439\u043A\u0430, \u0434\u0435\u0442\u0435\u0439\u043B\u0438\u043D\u0433 \u0438 \u043E\u0431\u0441\u043B\u0443\u0436\u0438\u0432\u0430\u043D\u0438\u0435. \u0417\u0430\u043F\u0438\u0441\u044C \u0431\u0435\u0437 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 \u0438 \u0437\u0432\u043E\u043D\u043A\u043E\u0432.",
-      welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u0430\u0432\u0442\u043E \u043D\u0430 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0435\u0437 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 \u0438 \u0437\u0432\u043E\u043D\u043A\u043E\u0432.",
-      labels: { staff: "\u0411\u043E\u043A\u0441", staffPlural: "\u0411\u043E\u043A\u0441\u044B", service: "\u0420\u0430\u0431\u043E\u0442\u0430" },
-      stepMin: 30,
-      minLeadMin: 60,
-      maxDaysAhead: 14,
-      cancelHours: 2,
-      remind2h: true,
-      fields: [
-        { key: "car", label: "\u041C\u0430\u0440\u043A\u0430 \u0438 \u043C\u043E\u0434\u0435\u043B\u044C \u0430\u0432\u0442\u043E", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: Lada Granta", required: true },
-        { key: "plate", label: "\u0413\u043E\u0441\u043D\u043E\u043C\u0435\u0440", placeholder: "\u0410123\u0412\u0421 163", required: false }
-      ]
-    }),
-    staff: [{ name: "\u0411\u043E\u043A\u0441 1", work_hours: weekdays("09:00", "20:00", [1, 2, 3, 4, 5, 6, 7]) }],
-    services: [
-      { title: "\u0428\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436 R13\u2013R16", price: 1600, duration_min: 45 },
-      { title: "\u0428\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436 R17\u2013R20", price: 2400, duration_min: 60 },
-      { title: "\u041A\u043E\u043C\u043F\u043B\u0435\u043A\u0441\u043D\u0430\u044F \u043C\u043E\u0439\u043A\u0430", price: 900, duration_min: 45 },
-      { title: "\u041F\u043E\u043B\u0438\u0440\u043E\u0432\u043A\u0430 \u043A\u0443\u0437\u043E\u0432\u0430", price: 8e3, price_from: true, duration_min: 240 },
-      { title: "\u0425\u0438\u043C\u0447\u0438\u0441\u0442\u043A\u0430 \u0441\u0430\u043B\u043E\u043D\u0430", price: 6e3, price_from: true, duration_min: 240 },
-      { title: "\u0417\u0430\u043C\u0435\u043D\u0430 \u043C\u0430\u0441\u043B\u0430", price: 700, duration_min: 30 }
-    ]
-  }
-];
-var getTemplate = (id) => TEMPLATES.find((t) => t.id === id);
 function withDefaults(templateId, settings) {
   const tpl = getTemplate(templateId) ?? TEMPLATES[0];
   return { ...tpl.settings, ...settings ?? {}, labels: { ...tpl.settings.labels, ...settings?.labels ?? {} } };
 }
+var weekdays, baseSettings, TEMPLATES, getTemplate;
+var init_templates = __esm({
+  "server/templates.ts"() {
+    "use strict";
+    weekdays = (from, to, days = [1, 2, 3, 4, 5]) => Object.fromEntries(days.map((d) => [String(d), [[from, to]]]));
+    baseSettings = (over) => ({
+      emoji: "\u2728",
+      accent: "#2481cc",
+      description: "",
+      address: "",
+      contactPhone: "",
+      links: [],
+      welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0434\u0435\u0441\u044C \u043C\u043E\u0436\u043D\u043E \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043E\u043D\u043B\u0430\u0439\u043D \u0432 \u043F\u0430\u0440\u0443 \u043A\u0430\u0441\u0430\u043D\u0438\u0439.",
+      afterBookingText: "",
+      labels: { staff: "\u041C\u0430\u0441\u0442\u0435\u0440", staffPlural: "\u041C\u0430\u0441\u0442\u0435\u0440\u0430", service: "\u0423\u0441\u043B\u0443\u0433\u0430" },
+      stepMin: 30,
+      minLeadMin: 60,
+      maxDaysAhead: 30,
+      cancelHours: 3,
+      chooseStaff: false,
+      requirePhone: true,
+      remind2h: true,
+      fields: [],
+      bannerFileId: "",
+      bannerColor: "",
+      ...over
+    });
+    TEMPLATES = [
+      {
+        id: "beauty",
+        title: "\u0411\u044C\u044E\u0442\u0438-\u043C\u0430\u0441\u0442\u0435\u0440",
+        emoji: "\u{1F485}",
+        pitch: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440, \u043F\u0435\u0434\u0438\u043A\u044E\u0440, \u0431\u0440\u043E\u0432\u0438, \u0440\u0435\u0441\u043D\u0438\u0446\u044B. \u041E\u0434\u0438\u043D \u043C\u0430\u0441\u0442\u0435\u0440, \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E, \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F.",
+        settings: baseSettings({
+          emoji: "\u{1F485}",
+          accent: "#d6457b",
+          description: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440, \u043F\u0435\u0434\u0438\u043A\u044E\u0440 \u0438 \u0431\u0440\u043E\u0432\u0438. \u0417\u0430\u043F\u0438\u0441\u044C \u043E\u043D\u043B\u0430\u0439\u043D 24/7 \u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443 \u0438 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E\u0435 \u043E\u043A\u043E\u0448\u043A\u043E.",
+          welcome: "\u041F\u0440\u0438\u0432\u0435\u0442! \u042F \u043C\u0430\u0441\u0442\u0435\u0440 \u043D\u043E\u0433\u0442\u0435\u0432\u043E\u0433\u043E \u0441\u0435\u0440\u0432\u0438\u0441\u0430. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u044F \u043F\u0440\u0438\u0448\u043B\u044E \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435 \u043D\u0430\u043A\u0430\u043D\u0443\u043D\u0435.",
+          afterBookingText: "\u0415\u0441\u043B\u0438 \u043F\u043B\u0430\u043D\u044B \u0438\u0437\u043C\u0435\u043D\u044F\u0442\u0441\u044F \u2014 \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u0435 \u0437\u0430\u043F\u0438\u0441\u044C \u0432 \xAB\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438\xBB, \u0447\u0442\u043E\u0431\u044B \u043E\u043A\u043E\u0448\u043A\u043E \u0434\u043E\u0441\u0442\u0430\u043B\u043E\u0441\u044C \u0434\u0440\u0443\u0433\u043E\u043C\u0443.",
+          fields: [{ key: "wish", label: "\u041F\u043E\u0436\u0435\u043B\u0430\u043D\u0438\u044F \u043F\u043E \u0434\u0438\u0437\u0430\u0439\u043D\u0443", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: \u043D\u044E\u0434, \u043A\u043E\u0440\u043E\u0442\u043A\u0430\u044F \u0434\u043B\u0438\u043D\u0430", required: false }]
+        }),
+        staff: [{ name: "\u041C\u0430\u0441\u0442\u0435\u0440", work_hours: weekdays("10:00", "20:00", [1, 2, 3, 4, 5, 6]) }],
+        services: [
+          { title: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440 \u0441 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u0435\u043C \u0433\u0435\u043B\u044C-\u043B\u0430\u043A", price: 1800, duration_min: 120 },
+          { title: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440 \u0431\u0435\u0437 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u044F", price: 900, duration_min: 60 },
+          { title: "\u041D\u0430\u0440\u0430\u0449\u0438\u0432\u0430\u043D\u0438\u0435 \u043D\u043E\u0433\u0442\u0435\u0439", price: 2800, price_from: true, duration_min: 180 },
+          { title: "\u041F\u0435\u0434\u0438\u043A\u044E\u0440 \u0441 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u0435\u043C", price: 2200, duration_min: 120 },
+          { title: "\u041A\u043E\u0440\u0440\u0435\u043A\u0446\u0438\u044F \u0438 \u043E\u043A\u0440\u0430\u0448\u0438\u0432\u0430\u043D\u0438\u0435 \u0431\u0440\u043E\u0432\u0435\u0439", price: 1200, duration_min: 60 },
+          { title: "\u0421\u043D\u044F\u0442\u0438\u0435 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u044F", price: 400, duration_min: 30 }
+        ]
+      },
+      {
+        id: "barber",
+        title: "\u0411\u0430\u0440\u0431\u0435\u0440\u0448\u043E\u043F / \u043F\u0430\u0440\u0438\u043A\u043C\u0430\u0445\u0435\u0440",
+        emoji: "\u{1F488}",
+        pitch: "\u041D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u043E\u0432, \u0432\u044B\u0431\u043E\u0440 \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u0438\u043B\u0438 \xAB\u043B\u044E\u0431\u043E\u0439 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0439\xBB.",
+        settings: baseSettings({
+          emoji: "\u{1F488}",
+          accent: "#b7791f",
+          description: "\u041C\u0443\u0436\u0441\u043A\u0438\u0435 \u0441\u0442\u0440\u0438\u0436\u043A\u0438 \u0438 \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u0435 \u0431\u043E\u0440\u043E\u0434\u044B. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F.",
+          welcome: "\u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C! \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443, \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u0438 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0435\u0437 \u0437\u0432\u043E\u043D\u043A\u043E\u0432 \u0438 \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u044F.",
+          chooseStaff: true,
+          stepMin: 15,
+          minLeadMin: 30,
+          maxDaysAhead: 21,
+          cancelHours: 2
+        }),
+        staff: [
+          { name: "\u0410\u043B\u0435\u043A\u0441\u0435\u0439", description: "\u0422\u043E\u043F-\u0431\u0430\u0440\u0431\u0435\u0440", work_hours: weekdays("10:00", "21:00", [1, 2, 3, 4, 5, 6, 7]) },
+          { name: "\u0414\u043C\u0438\u0442\u0440\u0438\u0439", description: "\u0411\u0430\u0440\u0431\u0435\u0440", work_hours: weekdays("12:00", "21:00", [2, 3, 4, 5, 6]) }
+        ],
+        services: [
+          { title: "\u041C\u0443\u0436\u0441\u043A\u0430\u044F \u0441\u0442\u0440\u0438\u0436\u043A\u0430", price: 1200, duration_min: 45 },
+          { title: "\u0421\u0442\u0440\u0438\u0436\u043A\u0430 \u043C\u0430\u0448\u0438\u043D\u043A\u043E\u0439", price: 700, duration_min: 30 },
+          { title: "\u041E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u0435 \u0431\u043E\u0440\u043E\u0434\u044B", price: 800, duration_min: 30 },
+          { title: "\u0421\u0442\u0440\u0438\u0436\u043A\u0430 + \u0431\u043E\u0440\u043E\u0434\u0430", price: 1800, duration_min: 75 },
+          { title: "\u0414\u0435\u0442\u0441\u043A\u0430\u044F \u0441\u0442\u0440\u0438\u0436\u043A\u0430", price: 900, duration_min: 30 }
+        ]
+      },
+      {
+        id: "tutor",
+        title: "\u0420\u0435\u043F\u0435\u0442\u0438\u0442\u043E\u0440 / \u043F\u0441\u0438\u0445\u043E\u043B\u043E\u0433 / \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u043D\u0442",
+        emoji: "\u{1F393}",
+        pitch: "\u0417\u0430\u043D\u044F\u0442\u0438\u044F \u0438 \u043A\u043E\u043D\u0441\u0443\u043B\u044C\u0442\u0430\u0446\u0438\u0438 \u043E\u043D\u043B\u0430\u0439\u043D \u0438\u043B\u0438 \u043E\u0447\u043D\u043E, \u0430\u043D\u043A\u0435\u0442\u0430 \u0441 \u0446\u0435\u043B\u044C\u044E.",
+        settings: baseSettings({
+          emoji: "\u{1F393}",
+          accent: "#4f46e5",
+          description: "\u0418\u043D\u0434\u0438\u0432\u0438\u0434\u0443\u0430\u043B\u044C\u043D\u044B\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u044F \u043E\u043D\u043B\u0430\u0439\u043D \u0438 \u043E\u0447\u043D\u043E. \u041F\u0435\u0440\u0432\u043E\u0435 \u043F\u0440\u043E\u0431\u043D\u043E\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u0435 \u2014 \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E.",
+          welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0444\u043E\u0440\u043C\u0430\u0442 \u0437\u0430\u043D\u044F\u0442\u0438\u044F \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F. \u0421\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u0441\u043E\u0437\u0432\u043E\u043D \u043F\u0440\u0438\u0448\u043B\u044E \u043F\u0435\u0440\u0435\u0434 \u043D\u0430\u0447\u0430\u043B\u043E\u043C.",
+          afterBookingText: "\u0417\u0430\u043D\u044F\u0442\u0438\u0435 \u043F\u0440\u043E\u0445\u043E\u0434\u0438\u0442 \u043E\u043D\u043B\u0430\u0439\u043D. \u0421\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u0441\u043E\u0437\u0432\u043E\u043D \u043F\u0440\u0438\u0448\u043B\u044E \u0432 \u044D\u0442\u043E\u0442 \u0447\u0430\u0442 \u043F\u0435\u0440\u0435\u0434 \u043D\u0430\u0447\u0430\u043B\u043E\u043C.",
+          labels: { staff: "\u041F\u0440\u0435\u043F\u043E\u0434\u0430\u0432\u0430\u0442\u0435\u043B\u044C", staffPlural: "\u041F\u0440\u0435\u043F\u043E\u0434\u0430\u0432\u0430\u0442\u0435\u043B\u0438", service: "\u0417\u0430\u043D\u044F\u0442\u0438\u0435" },
+          stepMin: 60,
+          minLeadMin: 180,
+          cancelHours: 12,
+          fields: [
+            { key: "goal", label: "\u041A\u043B\u0430\u0441\u0441 / \u0446\u0435\u043B\u044C \u0437\u0430\u043D\u044F\u0442\u0438\u0439", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: 9 \u043A\u043B\u0430\u0441\u0441, \u041E\u0413\u042D \u043F\u043E \u043C\u0430\u0442\u0435\u043C\u0430\u0442\u0438\u043A\u0435", required: true }
+          ]
+        }),
+        staff: [{ name: "\u041F\u0440\u0435\u043F\u043E\u0434\u0430\u0432\u0430\u0442\u0435\u043B\u044C", work_hours: weekdays("15:00", "21:00") }],
+        services: [
+          { title: "\u041F\u0440\u043E\u0431\u043D\u043E\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u0435", price: 0, duration_min: 30 },
+          { title: "\u0418\u043D\u0434\u0438\u0432\u0438\u0434\u0443\u0430\u043B\u044C\u043D\u043E\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u0435", price: 1500, duration_min: 60 },
+          { title: "\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430 \u043A \u044D\u043A\u0437\u0430\u043C\u0435\u043D\u0443", price: 2e3, duration_min: 90 },
+          { title: "\u041F\u0430\u043A\u0435\u0442 4 \u0437\u0430\u043D\u044F\u0442\u0438\u044F", price: 5400, duration_min: 60, description: "\u041E\u043F\u043B\u0430\u0442\u0430 \u0437\u0430 \u043C\u0435\u0441\u044F\u0446 \u0432\u043F\u0435\u0440\u0451\u0434" }
+        ]
+      },
+      {
+        id: "wellness",
+        title: "\u041C\u0430\u0441\u0441\u0430\u0436 / \u0442\u0440\u0435\u043D\u0435\u0440 / SPA",
+        emoji: "\u{1F9D8}",
+        pitch: "\u0421\u0435\u0430\u043D\u0441\u044B 60/90 \u043C\u0438\u043D\u0443\u0442, \u043F\u043E\u0436\u0435\u043B\u0430\u043D\u0438\u044F \u043A\u043B\u0438\u0435\u043D\u0442\u0430, \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F.",
+        settings: baseSettings({
+          emoji: "\u{1F9D8}",
+          accent: "#0f9d76",
+          description: "\u041C\u0430\u0441\u0441\u0430\u0436 \u0438 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u044C\u043D\u044B\u0435 \u0442\u0440\u0435\u043D\u0438\u0440\u043E\u0432\u043A\u0438. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0441\u0435\u0430\u043D\u0441 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F.",
+          welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435\u0441\u044C \u043D\u0430 \u0441\u0435\u0430\u043D\u0441 \u0432 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u043D\u0430\u043F\u043E\u043C\u043D\u044E \u043D\u0430\u043A\u0430\u043D\u0443\u043D\u0435.",
+          labels: { staff: "\u0421\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442", staffPlural: "\u0421\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442\u044B", service: "\u0421\u0435\u0430\u043D\u0441" },
+          cancelHours: 6,
+          fields: [{ key: "wish", label: "\u041F\u043E\u0436\u0435\u043B\u0430\u043D\u0438\u044F \u0438\u043B\u0438 \u0437\u043E\u043D\u044B \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u044F", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: \u0448\u0435\u044F \u0438 \u043F\u043B\u0435\u0447\u0438", required: false }]
+        }),
+        staff: [{ name: "\u0421\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442", work_hours: weekdays("09:00", "21:00", [1, 2, 3, 4, 5, 6]) }],
+        services: [
+          { title: "\u041A\u043B\u0430\u0441\u0441\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u043C\u0430\u0441\u0441\u0430\u0436", price: 2500, duration_min: 60 },
+          { title: "\u041C\u0430\u0441\u0441\u0430\u0436 \u0441\u043F\u0438\u043D\u044B \u0438 \u0448\u0435\u0438", price: 1500, duration_min: 30 },
+          { title: "\u0410\u043D\u0442\u0438\u0446\u0435\u043B\u043B\u044E\u043B\u0438\u0442\u043D\u044B\u0439 \u043C\u0430\u0441\u0441\u0430\u0436", price: 2800, duration_min: 60 },
+          { title: "\u041F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u044C\u043D\u0430\u044F \u0442\u0440\u0435\u043D\u0438\u0440\u043E\u0432\u043A\u0430", price: 2e3, duration_min: 60 },
+          { title: "SPA-\u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u0430", price: 4500, duration_min: 90 }
+        ]
+      },
+      {
+        id: "auto",
+        title: "\u0410\u0432\u0442\u043E: \u0434\u0435\u0442\u0435\u0439\u043B\u0438\u043D\u0433 / \u0448\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436 / \u0441\u0435\u0440\u0432\u0438\u0441",
+        emoji: "\u{1F697}",
+        pitch: "\u0414\u043B\u0438\u043D\u043D\u044B\u0435 \u0440\u0430\u0431\u043E\u0442\u044B, \u0434\u0430\u043D\u043D\u044B\u0435 \u0430\u0432\u0442\u043E \u0432 \u0430\u043D\u043A\u0435\u0442\u0435, \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0431\u043E\u043A\u0441\u043E\u0432.",
+        settings: baseSettings({
+          emoji: "\u{1F697}",
+          accent: "#e8590c",
+          description: "\u0428\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436, \u043C\u043E\u0439\u043A\u0430, \u0434\u0435\u0442\u0435\u0439\u043B\u0438\u043D\u0433 \u0438 \u043E\u0431\u0441\u043B\u0443\u0436\u0438\u0432\u0430\u043D\u0438\u0435. \u0417\u0430\u043F\u0438\u0441\u044C \u0431\u0435\u0437 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 \u0438 \u0437\u0432\u043E\u043D\u043A\u043E\u0432.",
+          welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u0430\u0432\u0442\u043E \u043D\u0430 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0435\u0437 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 \u0438 \u0437\u0432\u043E\u043D\u043A\u043E\u0432.",
+          labels: { staff: "\u0411\u043E\u043A\u0441", staffPlural: "\u0411\u043E\u043A\u0441\u044B", service: "\u0420\u0430\u0431\u043E\u0442\u0430" },
+          stepMin: 30,
+          minLeadMin: 60,
+          maxDaysAhead: 14,
+          cancelHours: 2,
+          remind2h: true,
+          fields: [
+            { key: "car", label: "\u041C\u0430\u0440\u043A\u0430 \u0438 \u043C\u043E\u0434\u0435\u043B\u044C \u0430\u0432\u0442\u043E", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: Lada Granta", required: true },
+            { key: "plate", label: "\u0413\u043E\u0441\u043D\u043E\u043C\u0435\u0440", placeholder: "\u0410123\u0412\u0421 163", required: false }
+          ]
+        }),
+        staff: [{ name: "\u0411\u043E\u043A\u0441 1", work_hours: weekdays("09:00", "20:00", [1, 2, 3, 4, 5, 6, 7]) }],
+        services: [
+          { title: "\u0428\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436 R13\u2013R16", price: 1600, duration_min: 45 },
+          { title: "\u0428\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436 R17\u2013R20", price: 2400, duration_min: 60 },
+          { title: "\u041A\u043E\u043C\u043F\u043B\u0435\u043A\u0441\u043D\u0430\u044F \u043C\u043E\u0439\u043A\u0430", price: 900, duration_min: 45 },
+          { title: "\u041F\u043E\u043B\u0438\u0440\u043E\u0432\u043A\u0430 \u043A\u0443\u0437\u043E\u0432\u0430", price: 8e3, price_from: true, duration_min: 240 },
+          { title: "\u0425\u0438\u043C\u0447\u0438\u0441\u0442\u043A\u0430 \u0441\u0430\u043B\u043E\u043D\u0430", price: 6e3, price_from: true, duration_min: 240 },
+          { title: "\u0417\u0430\u043C\u0435\u043D\u0430 \u043C\u0430\u0441\u043B\u0430", price: 700, duration_min: 30 }
+        ]
+      }
+    ];
+    getTemplate = (id) => TEMPLATES.find((t) => t.id === id);
+  }
+});
 
 // server/store.ts
-var UserError = class extends Error {
-};
-var rowToBusiness = (r) => ({ ...r, settings: withDefaults(r.template, r.settings) });
+import { randomBytes } from "node:crypto";
+import { DateTime as DateTime3 } from "luxon";
 async function upsertUser(db2, u) {
   const [row2] = await db2.query(
     `insert into users (tg_id, first_name, username) values ($1, $2, $3)
@@ -948,15 +802,6 @@ async function claimInvite(db2, code, tgId) {
     return { business: rowToBusiness(b), role: inv.role };
   });
 }
-var listServices = (db2, businessId, all = false) => db2.query(
-  `select * from services where business_id = $1 ${all ? "" : "and active"} order by sort, id`,
-  [businessId]
-);
-var listStaff = (db2, businessId, all = false) => db2.query(`select * from staff where business_id = $1 ${all ? "" : "and active"} order by sort, id`, [businessId]);
-var listPortfolio = (db2, businessId) => db2.query(
-  `select id, file_id, caption from portfolio where business_id = $1 order by sort, id desc limit 60`,
-  [businessId]
-);
 async function busyFor(db2, businessId, staffIds, from, to) {
   const bookings = await db2.query(
     `select staff_id, starts_at, ends_at from bookings
@@ -1019,11 +864,6 @@ async function availability(db2, opts) {
   }
   return result;
 }
-var BookingConflict = class extends UserError {
-  constructor() {
-    super("\u042D\u0442\u043E \u0432\u0440\u0435\u043C\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0447\u0442\u043E \u0437\u0430\u043D\u044F\u043B\u0438. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0440\u0443\u0433\u043E\u0435, \u043F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430.");
-  }
-};
 async function createBooking(db2, opts) {
   const { business, client } = opts;
   if (business.status !== "active") throw new UserError("\u0417\u0430\u043F\u0438\u0441\u044C \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430");
@@ -1110,16 +950,6 @@ async function cancelBooking(db2, opts) {
   );
   return row2;
 }
-var clientBookings = (db2, businessId, tgId) => db2.query(
-  `select * from bookings where business_id = $1 and client_tg_id = $2
-     and (starts_at > now() - interval '30 days') order by starts_at desc limit 30`,
-  [businessId, tgId]
-);
-var bookingsInRange = (db2, businessId, from, to) => db2.query(
-  `select b.*, s.name as staff_name from bookings b join staff s on s.id = b.staff_id
-     where b.business_id = $1 and b.starts_at >= $2 and b.starts_at < $3 order by b.starts_at`,
-  [businessId, from, to]
-);
 async function setBookingStatus(db2, businessId, id, status2) {
   const [row2] = await db2.query(
     `update bookings set status = $3 where id = $1 and business_id = $2 and status <> 'cancelled' returning *`,
@@ -1159,8 +989,675 @@ async function platformStats(db2) {
   );
   return r;
 }
+var UserError, rowToBusiness, listServices, listStaff, listPortfolio, BookingConflict, clientBookings, bookingsInRange;
+var init_store = __esm({
+  "server/store.ts"() {
+    "use strict";
+    init_phone();
+    init_db();
+    init_slots();
+    init_templates();
+    UserError = class extends Error {
+    };
+    rowToBusiness = (r) => ({ ...r, settings: withDefaults(r.template, r.settings) });
+    listServices = (db2, businessId, all = false) => db2.query(
+      `select * from services where business_id = $1 ${all ? "" : "and active"} order by sort, id`,
+      [businessId]
+    );
+    listStaff = (db2, businessId, all = false) => db2.query(`select * from staff where business_id = $1 ${all ? "" : "and active"} order by sort, id`, [businessId]);
+    listPortfolio = (db2, businessId) => db2.query(
+      `select id, file_id, caption from portfolio where business_id = $1 order by sort, id desc limit 60`,
+      [businessId]
+    );
+    BookingConflict = class extends UserError {
+      constructor() {
+        super("\u042D\u0442\u043E \u0432\u0440\u0435\u043C\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0447\u0442\u043E \u0437\u0430\u043D\u044F\u043B\u0438. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0440\u0443\u0433\u043E\u0435, \u043F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430.");
+      }
+    };
+    clientBookings = (db2, businessId, tgId) => db2.query(
+      `select * from bookings where business_id = $1 and client_tg_id = $2
+     and (starts_at > now() - interval '30 days') order by starts_at desc limit 30`,
+      [businessId, tgId]
+    );
+    bookingsInRange = (db2, businessId, from, to) => db2.query(
+      `select b.*, s.name as staff_name from bookings b join staff s on s.id = b.staff_id
+     where b.business_id = $1 and b.starts_at >= $2 and b.starts_at < $3 order by b.starts_at`,
+      [businessId, from, to]
+    );
+  }
+});
+
+// server/max-ca.ts
+var RUSSIAN_TRUSTED_ROOT_CA;
+var init_max_ca = __esm({
+  "server/max-ca.ts"() {
+    "use strict";
+    RUSSIAN_TRUSTED_ROOT_CA = `
+-----BEGIN CERTIFICATE-----
+MIIFwjCCA6qgAwIBAgICEAAwDQYJKoZIhvcNAQELBQAwcDELMAkGA1UEBhMCUlUx
+PzA9BgNVBAoMNlRoZSBNaW5pc3RyeSBvZiBEaWdpdGFsIERldmVsb3BtZW50IGFu
+ZCBDb21tdW5pY2F0aW9uczEgMB4GA1UEAwwXUnVzc2lhbiBUcnVzdGVkIFJvb3Qg
+Q0EwHhcNMjIwMzAxMjEwNDE1WhcNMzIwMjI3MjEwNDE1WjBwMQswCQYDVQQGEwJS
+VTE/MD0GA1UECgw2VGhlIE1pbmlzdHJ5IG9mIERpZ2l0YWwgRGV2ZWxvcG1lbnQg
+YW5kIENvbW11bmljYXRpb25zMSAwHgYDVQQDDBdSdXNzaWFuIFRydXN0ZWQgUm9v
+dCBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMfFOZ8pUAL3+r2n
+qqE0Zp52selXsKGFYoG0GM5bwz1bSFtCt+AZQMhkWQheI3poZAToYJu69pHLKS6Q
+XBiwBC1cvzYmUYKMYZC7jE5YhEU2bSL0mX7NaMxMDmH2/NwuOVRj8OImVa5s1F4U
+zn4Kv3PFlDBjjSjXKVY9kmjUBsXQrIHeaqmUIsPIlNWUnimXS0I0abExqkbdrXbX
+YwCOXhOO2pDUx3ckmJlCMUGacUTnylyQW2VsJIyIGA8V0xzdaeUXg0VZ6ZmNUr5Y
+Ber/EAOLPb8NYpsAhJe2mXjMB/J9HNsoFMBFJ0lLOT/+dQvjbdRZoOT8eqJpWnVD
+U+QL/qEZnz57N88OWM3rabJkRNdU/Z7x5SFIM9FrqtN8xewsiBWBI0K6XFuOBOTD
+4V08o4TzJ8+Ccq5XlCUW2L48pZNCYuBDfBh7FxkB7qDgGDiaftEkZZfApRg2E+M9
+G8wkNKTPLDc4wH0FDTijhgxR3Y4PiS1HL2Zhw7bD3CbslmEGgfnnZojNkJtcLeBH
+BLa52/dSwNU4WWLubaYSiAmA9IUMX1/RpfpxOxd4Ykmhz97oFbUaDJFipIggx5sX
+ePAlkTdWnv+RWBxlJwMQ25oEHmRguNYf4Zr/Rxr9cS93Y+mdXIZaBEE0KS2iLRqa
+OiWBki9IMQU4phqPOBAaG7A+eP8PAgMBAAGjZjBkMB0GA1UdDgQWBBTh0YHlzlpf
+BKrS6badZrHF+qwshzAfBgNVHSMEGDAWgBTh0YHlzlpfBKrS6badZrHF+qwshzAS
+BgNVHRMBAf8ECDAGAQH/AgEEMA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsF
+AAOCAgEAALIY1wkilt/urfEVM5vKzr6utOeDWCUczmWX/RX4ljpRdgF+5fAIS4vH
+tmXkqpSCOVeWUrJV9QvZn6L227ZwuE15cWi8DCDal3Ue90WgAJJZMfTshN4OI8cq
+W9E4EG9wglbEtMnObHlms8F3CHmrw3k6KmUkWGoa+/ENmcVl68u/cMRl1JbW2bM+
+/3A+SAg2c6iPDlehczKx2oa95QW0SkPPWGuNA/CE8CpyANIhu9XFrj3RQ3EqeRcS
+AQQod1RNuHpfETLU/A2gMmvn/w/sx7TB3W5BPs6rprOA37tutPq9u6FTZOcG1Oqj
+C/B7yTqgI7rbyvox7DEXoX7rIiEqyNNUguTk/u3SZ4VXE2kmxdmSh3TQvybfbnXV
+4JbCZVaqiZraqc7oZMnRoWrXRG3ztbnbes/9qhRGI7PqXqeKJBztxRTEVj8ONs1d
+WN5szTwaPIvhkhO3CO5ErU2rVdUr89wKpNXbBODFKRtgxUT70YpmJ46VVaqdAhOZ
+D9EUUn4YaeLaS8AjSF/h7UkjOibNc4qVDiPP+rkehFWM66PVnP1Msh93tc+taIfC
+EYVMxjh8zNbFuoc7fzvvrFILLe7ifvEIUqSVIC/AzplM/Jxw7buXFeGP1qVCBEHq
+391d/9RAfaZ12zkwFsl+IKwE/OZxW8AHa9i1p4GO0YSNuczzEm4=
+-----END CERTIFICATE-----
+`;
+  }
+});
+
+// server/max.ts
+var max_exports = {};
+__export(max_exports, {
+  MAX_UPDATES: () => MAX_UPDATES,
+  MaxApiError: () => MaxApiError,
+  btnsFromTelegram: () => btnsFromTelegram,
+  decodeMaxStart: () => decodeMaxStart,
+  fromMaxUserId: () => fromMaxUserId,
+  isMaxUser: () => isMaxUser,
+  maxAnswerCallback: () => maxAnswerCallback,
+  maxApi: () => maxApi,
+  maxKeyboard: () => maxKeyboard,
+  maxSend: () => maxSend,
+  setMaxApi: () => setMaxApi,
+  setupMax: () => setupMax,
+  toMaxUserId: () => toMaxUserId
+});
+import { request } from "node:https";
+import { rootCertificates } from "node:tls";
+function realApi(token) {
+  return {
+    call: (method, path, query, body) => new Promise((resolve, reject) => {
+      const qs = query ? `?${new URLSearchParams(Object.entries(query).map(([k, v]) => [k, String(v)]))}` : "";
+      const data = body === void 0 ? void 0 : Buffer.from(JSON.stringify(body));
+      const req = request(
+        {
+          host: HOST,
+          path: `${path}${qs}`,
+          method,
+          ca: CA,
+          timeout: 15e3,
+          headers: { authorization: token, ...data ? { "content-type": "application/json", "content-length": data.length } : {} }
+        },
+        (res) => {
+          const chunks = [];
+          res.on("data", (c) => chunks.push(c));
+          res.on("end", () => {
+            const text = Buffer.concat(chunks).toString("utf8");
+            let json2 = null;
+            try {
+              json2 = text ? JSON.parse(text) : {};
+            } catch {
+            }
+            if ((res.statusCode ?? 500) >= 400) reject(new MaxApiError(res.statusCode ?? 500, json2?.message ?? json2?.code ?? text.slice(0, 200)));
+            else resolve(json2);
+          });
+        }
+      );
+      req.on("timeout", () => req.destroy(new Error("MAX timeout")));
+      req.on("error", reject);
+      if (data) req.write(data);
+      req.end();
+    })
+  };
+}
+function setMaxApi(api2) {
+  override = api2;
+}
+function maxApi() {
+  if (override) return override;
+  const token = config.maxBotToken;
+  if (!token) throw new Error("MAX_BOT_TOKEN \u043D\u0435 \u0437\u0430\u0434\u0430\u043D");
+  if (cached?.token !== token) cached = { token, api: realApi(token) };
+  return cached.api;
+}
+function maxKeyboard(rows) {
+  const buttons = rows.map(
+    (row2) => row2.map((b) => {
+      if (b.app) {
+        const payload = encodeMaxStart(b.app);
+        return { type: "open_app", text: b.text.slice(0, 128), web_app: config.maxBotName, ...payload ? { payload } : {} };
+      }
+      if (b.url) return { type: "link", text: b.text.slice(0, 128), url: b.url };
+      return { type: "callback", text: b.text.slice(0, 128), payload: b.cb ?? "" };
+    })
+  ).filter((r) => r.length);
+  return buttons.length ? [{ type: "inline_keyboard", payload: { buttons } }] : [];
+}
+function btnsFromTelegram(extra) {
+  const kb = extra?.reply_markup?.inline_keyboard;
+  if (!kb) return [];
+  return kb.map(
+    (row2) => row2.map((b) => {
+      if (b.web_app?.url) {
+        const q = new URL(b.web_app.url).searchParams;
+        return { text: b.text, app: { b: q.get("b") ?? void 0, view: q.get("view") ?? void 0 } };
+      }
+      if (b.url) return { text: b.text, url: b.url };
+      return { text: b.text, cb: b.callback_data ?? "" };
+    })
+  );
+}
+async function maxSend(internalId, html, rows = []) {
+  const attachments = maxKeyboard(rows);
+  return maxApi().call("POST", "/messages", { user_id: toMaxUserId(internalId), disable_link_preview: "true" }, {
+    text: html.slice(0, 4e3),
+    format: "html",
+    ...attachments.length ? { attachments } : {}
+  });
+}
+async function setupMax(webhookUrl2) {
+  const api2 = maxApi();
+  const me = await api2.call("GET", "/me");
+  if (me?.username) (await Promise.resolve().then(() => (init_config(), config_exports))).runtime.maxBotName = me.username;
+  const subs = await api2.call("GET", "/subscriptions");
+  const have = (subs?.subscriptions ?? []).map((s) => s.url);
+  if (!have.includes(webhookUrl2)) {
+    for (const url of have) await api2.call("DELETE", "/subscriptions", { url }).catch(() => {
+    });
+    await api2.call("POST", "/subscriptions", void 0, { url: webhookUrl2, update_types: MAX_UPDATES, secret: config.maxWebhookSecret });
+    await api2.call("PATCH", "/me/commands", void 0, {
+      commands: [
+        { name: "start", description: "\u0413\u043B\u0430\u0432\u043D\u043E\u0435 \u043C\u0435\u043D\u044E" },
+        { name: "masters", description: "\u041C\u043E\u0438 \u043C\u0430\u0441\u0442\u0435\u0440\u0430" },
+        { name: "admin", description: "\u041F\u0430\u043D\u0435\u043B\u044C \u0434\u043B\u044F \u0432\u043B\u0430\u0434\u0435\u043B\u044C\u0446\u0435\u0432 \u0431\u0438\u0437\u043D\u0435\u0441\u0430" },
+        { name: "id", description: "\u041C\u043E\u0439 id \u0432 MAX" }
+      ]
+    }).catch((e) => console.error("max commands", e));
+  }
+  return { bot: me?.username ?? "", webhook: webhookUrl2 };
+}
+var isMaxUser, toMaxUserId, fromMaxUserId, HOST, CA, MaxApiError, override, cached, maxAnswerCallback, MAX_UPDATES;
+var init_max = __esm({
+  "server/max.ts"() {
+    "use strict";
+    init_config();
+    init_max_ca();
+    isMaxUser = (id) => id < 0;
+    toMaxUserId = (internalId) => -internalId;
+    fromMaxUserId = (maxUserId) => -Math.abs(maxUserId);
+    HOST = "platform-api2.max.ru";
+    CA = [...rootCertificates, RUSSIAN_TRUSTED_ROOT_CA];
+    MaxApiError = class extends Error {
+      constructor(error_code, description) {
+        super(`MAX ${error_code}: ${description}`);
+        this.error_code = error_code;
+        this.description = description;
+      }
+      error_code;
+      description;
+    };
+    override = null;
+    cached = null;
+    maxAnswerCallback = (callbackId, notification = "\u041E\u0442\u043A\u0440\u044B\u0432\u0430\u044E\u2026") => maxApi().call("POST", "/answers", { callback_id: callbackId }, { notification }).catch(() => {
+    });
+    MAX_UPDATES = ["bot_started", "message_created", "message_callback"];
+  }
+});
+
+// server/telegram.ts
+import { Api } from "grammy";
+function rawApi() {
+  api ??= new Api(config.botToken);
+  return api;
+}
+function tg() {
+  if (override2) return override2;
+  const a = rawApi();
+  return {
+    sendMessage: async (chatId, html, extra) => {
+      if (chatId < 0) {
+        const { maxSend: maxSend2, btnsFromTelegram: btnsFromTelegram2 } = await Promise.resolve().then(() => (init_max(), max_exports));
+        return maxSend2(chatId, html, btnsFromTelegram2(extra));
+      }
+      return a.sendMessage(chatId, html, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...extra });
+    },
+    sendPhoto: async (chatId, photo2, caption) => {
+      const { InputFile } = await import("grammy");
+      const target = chatId < 0 ? config.tgStorageChat : chatId;
+      if (!target) throw new Error("\u041D\u0435\u043A\u0443\u0434\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0444\u043E\u0442\u043E: \u0437\u0430\u0434\u0430\u0439\u0442\u0435 TG_STORAGE_CHAT_ID");
+      const msg = await a.sendPhoto(target, new InputFile(photo2), { caption });
+      const sizes = msg.photo ?? [];
+      return { file_id: sizes[sizes.length - 1].file_id };
+    },
+    setChatMenuButton: async (chatId, text, url) => {
+      if (chatId < 0) return null;
+      return a.setChatMenuButton({ chat_id: chatId, menu_button: { type: "web_app", text, web_app: { url } } });
+    }
+  };
+}
+function isBlockedError(e) {
+  const err = e;
+  return err?.error_code === 403 || /blocked|chat not found|deactivated|chat\.denied|dialog|not\.found/i.test(err?.description ?? "");
+}
+var override2, api;
+var init_telegram = __esm({
+  "server/telegram.ts"() {
+    "use strict";
+    init_config();
+    override2 = null;
+    api = null;
+  }
+});
+
+// server/notify.ts
+var notify_exports = {};
+__export(notify_exports, {
+  broadcast: () => broadcast,
+  notifySuperadmins: () => notifySuperadmins,
+  onBookingCancelled: () => onBookingCancelled,
+  onBookingCreated: () => onBookingCreated,
+  sendReminder: () => sendReminder
+});
+async function safeSend(chatId, html, extra) {
+  try {
+    await tg().sendMessage(chatId, html, extra);
+    return true;
+  } catch (e) {
+    if (!isBlockedError(e)) console.error("sendMessage", chatId, e);
+    return false;
+  }
+}
+async function adminRecipients(db2, businessId, staffId) {
+  const rows = await db2.query(
+    `select tg_id from business_admins where business_id = $1
+     union select tg_id from staff where id = $2 and tg_id is not null`,
+    [businessId, staffId ?? 0]
+  );
+  return rows.map((r) => Number(r.tg_id));
+}
+function bookingCard(b, biz, staffName2) {
+  const lines = [
+    `<b>${esc(fmtWhen(b.starts_at, biz.timezone))}</b>`,
+    `${esc(b.service_title)}${b.price ? ` \u2014 ${rub(b.price)}` : ""}`,
+    staffName2 && biz.settings.chooseStaff ? row(biz.settings.labels.staff, esc(staffName2)) : "",
+    ...biz.settings.fields.filter((f) => b.answers?.[f.key]).map((f) => row(f.label, esc(b.answers[f.key])))
+  ].filter(Boolean);
+  return `<blockquote>${lines.join("\n")}</blockquote>`;
+}
+async function onBookingCreated(db2, biz, b) {
+  const sName = await staffName(db2, b.staff_id);
+  const adminText = join([
+    `<b>\u041D\u043E\u0432\u0430\u044F \u0437\u0430\u043F\u0438\u0441\u044C</b> \xB7 ${esc(biz.name)}`,
+    bookingCard(b, biz, sName),
+    row("\u041A\u043B\u0438\u0435\u043D\u0442", `<b>${esc(b.client_name)}</b>`),
+    b.client_phone && row("\u0422\u0435\u043B\u0435\u0444\u043E\u043D", phoneHtml(b.client_phone)),
+    b.comment && row("\u041A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u0439", esc(b.comment)),
+    GAP,
+    b.client_tg_id < 0 ? "<i>\u041A\u043B\u0438\u0435\u043D\u0442 \u0437\u0430\u043F\u0438\u0441\u0430\u043B\u0441\u044F \u0447\u0435\u0440\u0435\u0437 MAX</i>" : `<a href="tg://user?id=${b.client_tg_id}">\u041D\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u043A\u043B\u0438\u0435\u043D\u0442\u0443 \u0432 Telegram</a>`
+  ]);
+  const adminKb = webAppButton("\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "admin" }));
+  await Promise.all((await adminRecipients(db2, biz.id, b.staff_id)).map((id) => safeSend(id, adminText, adminKb)));
+  const clientText = join([
+    `<b>\u0412\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u043D\u044B</b> \xB7 ${esc(biz.name)}`,
+    bookingCard(b, biz, sName),
+    biz.settings.address && row("\u0410\u0434\u0440\u0435\u0441", esc(biz.settings.address)),
+    biz.settings.contactPhone && row("\u0422\u0435\u043B\u0435\u0444\u043E\u043D", phoneHtml(biz.settings.contactPhone)),
+    biz.settings.afterBookingText && GAP,
+    biz.settings.afterBookingText && `<i>${esc(biz.settings.afterBookingText)}</i>`
+  ]);
+  await safeSend(b.client_tg_id, clientText, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
+}
+async function onBookingCancelled(db2, biz, b) {
+  const sName = await staffName(db2, b.staff_id);
+  if (b.cancelled_by === "client") {
+    const text = join([
+      `<b>\u041A\u043B\u0438\u0435\u043D\u0442 \u043E\u0442\u043C\u0435\u043D\u0438\u043B \u0437\u0430\u043F\u0438\u0441\u044C</b> \xB7 ${esc(biz.name)}`,
+      `<blockquote><s>${esc(fmtWhen(b.starts_at, biz.timezone))}</s>
+${esc(b.service_title)}</blockquote>`,
+      row("\u041A\u043B\u0438\u0435\u043D\u0442", `<b>${esc(b.client_name)}</b>`),
+      b.client_phone && row("\u0422\u0435\u043B\u0435\u0444\u043E\u043D", phoneHtml(b.client_phone)),
+      GAP,
+      "<i>\u042D\u0442\u043E \u0432\u0440\u0435\u043C\u044F \u0441\u043D\u043E\u0432\u0430 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E \u0434\u043B\u044F \u0437\u0430\u043F\u0438\u0441\u0438.</i>"
+    ]);
+    await Promise.all((await adminRecipients(db2, biz.id, b.staff_id)).map((id) => safeSend(id, text)));
+  } else {
+    const text = join([
+      `<b>\u0417\u0430\u043F\u0438\u0441\u044C \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430</b> \xB7 ${esc(biz.name)}`,
+      `<blockquote><s>${esc(fmtWhen(b.starts_at, biz.timezone))}</s>
+${esc(b.service_title)}</blockquote>`,
+      "\u0418\u0437\u0432\u0438\u043D\u0438\u0442\u0435 \u0437\u0430 \u043D\u0435\u0443\u0434\u043E\u0431\u0441\u0442\u0432\u043E. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435, \u043F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0434\u0440\u0443\u0433\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0443\u0434\u0435\u043C \u0440\u0430\u0434\u044B \u0432\u0430\u0441 \u0432\u0438\u0434\u0435\u0442\u044C."
+    ]);
+    await safeSend(b.client_tg_id, text, webAppButton("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u0441\u043D\u043E\u0432\u0430", webAppUrl({ b: biz.slug })));
+  }
+}
+async function sendReminder(biz, b, kind, now = /* @__PURE__ */ new Date()) {
+  const when = `${relDay(b.starts_at, biz.timezone, now)} \u0432 ${fmtTime(b.starts_at, biz.timezone)}`;
+  const text = join([
+    kind === "2h" ? `<b>\u0421\u043A\u043E\u0440\u043E \u0432\u0438\u0437\u0438\u0442 \u2014 ${esc(when)}</b>` : `<b>\u041D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u0435\u043C \u043E \u0437\u0430\u043F\u0438\u0441\u0438 \u2014 ${esc(when)}</b>`,
+    `<blockquote>${esc(biz.name)}
+${esc(b.service_title)}</blockquote>`,
+    biz.settings.address && row("\u0410\u0434\u0440\u0435\u0441", esc(biz.settings.address)),
+    GAP,
+    kind === "24h" ? "<i>\u0415\u0441\u043B\u0438 \u043F\u043B\u0430\u043D\u044B \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0438\u0441\u044C \u2014 \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u0435 \u0437\u0430\u043F\u0438\u0441\u044C, \u0447\u0442\u043E\u0431\u044B \u0432\u0440\u0435\u043C\u044F \u0434\u043E\u0441\u0442\u0430\u043B\u043E\u0441\u044C \u0434\u0440\u0443\u0433\u043E\u043C\u0443.</i>" : "\u0414\u043E \u0432\u0441\u0442\u0440\u0435\u0447\u0438!"
+  ]);
+  return safeSend(b.client_tg_id, text, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
+}
+async function notifySuperadmins(html) {
+  await Promise.all(config.superadmins.map((id) => safeSend(id, html)));
+}
+async function broadcast(db2, biz, text) {
+  const clients = await db2.query(
+    `select tg_id from clients where business_id = $1 and not blocked_bot order by last_seen desc limit 2000`,
+    [biz.id]
+  );
+  const html = `<b>${esc(biz.name)}</b>
+
+${esc(text)}`;
+  const kb = webAppButton("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", webAppUrl({ b: biz.slug }));
+  let sent = 0;
+  let failed = 0;
+  const blocked = [];
+  for (let i = 0; i < clients.length; i += 25) {
+    const batch = clients.slice(i, i + 25);
+    const res = await Promise.all(batch.map((c) => safeSend(Number(c.tg_id), html, kb)));
+    res.forEach((ok, j) => {
+      if (ok) sent++;
+      else {
+        failed++;
+        blocked.push(Number(batch[j].tg_id));
+      }
+    });
+    if (i + 25 < clients.length) await new Promise((r) => setTimeout(r, 1100));
+  }
+  if (blocked.length) {
+    await db2.query(`update clients set blocked_bot = true where business_id = $1 and tg_id = any($2::bigint[])`, [
+      biz.id,
+      blocked
+    ]);
+  }
+  return { sent, failed };
+}
+var webAppButton, row, phoneHtml, staffName, GAP, join;
+var init_notify = __esm({
+  "server/notify.ts"() {
+    "use strict";
+    init_config();
+    init_format();
+    init_telegram();
+    webAppButton = (text, url) => ({ reply_markup: { inline_keyboard: [[{ text, web_app: { url } }]] } });
+    row = (label, value) => `<i>${esc(label)}:</i> ${value}`;
+    phoneHtml = (p) => `<code>${esc(p)}</code>`;
+    staffName = async (db2, id) => (await db2.query(`select name from staff where id = $1`, [id]))[0]?.name;
+    GAP = "\0";
+    join = (parts) => parts.filter((x) => typeof x === "string" && x !== "").map((x) => x === GAP ? "" : x).join("\n");
+  }
+});
+
+// server/flows.ts
+async function businessCard(uid, b) {
+  const s = b.settings;
+  const kb = [[{ text: "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043E\u043D\u043B\u0430\u0439\u043D", app: { b: b.slug } }], [{ text: "\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", app: { b: b.slug, view: "my" } }]];
+  const others = (await businessesOfClient(db(), uid)).filter((x) => x.id !== b.id);
+  if (others.length) kb.push([{ text: "\u0414\u0440\u0443\u0433\u0438\u0435 \u043C\u0430\u0441\u0442\u0435\u0440\u0430", cb: "masters" }]);
+  if (isSuper(uid)) kb.push([{ text: "\u041F\u0430\u043D\u0435\u043B\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u044B", app: { view: "super" } }]);
+  const lines = [`<b>${esc(b.name)}</b>`, "", esc(s.welcome)];
+  const info = [s.address && `<i>\u0410\u0434\u0440\u0435\u0441:</i> ${esc(s.address)}`, s.contactPhone && `<i>\u0422\u0435\u043B\u0435\u0444\u043E\u043D:</i> <code>${esc(s.contactPhone)}</code>`].filter(Boolean);
+  if (info.length) lines.push("", ...info);
+  return { html: lines.join("\n"), kb, menuSlug: b.slug };
+}
+async function platformMenu(uid) {
+  const adminOf = await businessesOfAdmin(db(), uid);
+  const kb = adminOf.slice(0, 5).map((b) => [{ text: `\u041F\u0430\u043D\u0435\u043B\u044C: ${b.name}`, app: { b: b.slug, view: "admin" } }]);
+  if (isSuper(uid)) kb.push([{ text: "\u041F\u0430\u043D\u0435\u043B\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u044B", app: { view: "super" } }]);
+  if (adminOf.length || isSuper(uid)) return { html: "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435, \u0447\u0442\u043E \u043E\u0442\u043A\u0440\u044B\u0442\u044C:", kb };
+  return { html: ["<b>\u041E\u043D\u043B\u0430\u0439\u043D-\u0437\u0430\u043F\u0438\u0441\u044C</b>", "", "\u0427\u0442\u043E\u0431\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F, \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443 \u0432\u0430\u0448\u0435\u0433\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u2014 \u0438 \u0437\u0434\u0435\u0441\u044C \u043F\u043E\u044F\u0432\u0438\u0442\u0441\u044F \u0437\u0430\u043F\u0438\u0441\u044C \u043A \u043D\u0435\u043C\u0443."].join("\n") };
+}
+async function mastersList(uid) {
+  const list = await businessesOfClient(db(), uid);
+  if (!list.length) return { html: "\u0417\u0434\u0435\u0441\u044C \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u043C\u0430\u0441\u0442\u0435\u0440\u0430, \u043A \u043A\u043E\u0442\u043E\u0440\u044B\u043C \u0432\u044B \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u043B\u0438\u0441\u044C. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443 \u043C\u0430\u0441\u0442\u0435\u0440\u0430, \u0447\u0442\u043E\u0431\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F." };
+  return {
+    html: "<b>\u0412\u0430\u0448\u0438 \u043C\u0430\u0441\u0442\u0435\u0440\u0430</b>\n<i>\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435, \u043A \u043A\u043E\u043C\u0443 \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u0438\u043B\u0438 \u043F\u043E\u0441\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u0438.</i>",
+    kb: list.map((b) => [{ text: b.name, app: { b: b.slug } }])
+  };
+}
+async function onStart(user, payloadRaw, platform) {
+  const payload = payloadRaw.trim();
+  const uid = user.id;
+  if (payload.startsWith("inv_")) {
+    try {
+      const { business, role } = await claimInvite(db(), payload.slice(4), uid);
+      await setLastBusiness(db(), uid, business.id);
+      const client = platform === "tg" ? clientLink(business.slug) : maxClientLink(business.slug);
+      const admin = platform === "tg" ? adminLink(business.slug) : maxAdminLink(business.slug);
+      if (role === "owner") {
+        const { notifySuperadmins: notifySuperadmins2 } = await Promise.resolve().then(() => (init_notify(), notify_exports));
+        await notifySuperadmins2(`<b>\u041F\u0440\u0438\u0433\u043B\u0430\u0448\u0435\u043D\u0438\u0435 \u043F\u0440\u0438\u043D\u044F\u0442\u043E:</b> \xAB${esc(business.name)}\xBB \u2192 ${nameLink(user, platform)}`);
+      }
+      return [
+        {
+          html: [
+            `<b>\u0413\u043E\u0442\u043E\u0432\u043E.</b> \u0412\u044B ${role === "owner" ? "\u0432\u043B\u0430\u0434\u0435\u043B\u0435\u0446" : "\u0430\u0434\u043C\u0438\u043D\u0438\u0441\u0442\u0440\u0430\u0442\u043E\u0440"} \xAB${esc(business.name)}\xBB.`,
+            "",
+            "\u0412 \u043F\u0430\u043D\u0435\u043B\u0438 \u043C\u043E\u0436\u043D\u043E \u043F\u043E\u043C\u0435\u043D\u044F\u0442\u044C \u0443\u0441\u043B\u0443\u0433\u0438, \u0446\u0435\u043D\u044B, \u0433\u0440\u0430\u0444\u0438\u043A \u0438 \u0442\u0435\u043A\u0441\u0442\u044B.",
+            "",
+            "<b>\u0421\u0441\u044B\u043B\u043A\u0430 \u0434\u043B\u044F \u043A\u043B\u0438\u0435\u043D\u0442\u043E\u0432</b>",
+            "<i>\u041F\u043E\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0435\u0451 \u0432 \u0448\u0430\u043F\u043A\u0443 \u043A\u0430\u043D\u0430\u043B\u0430, Instagram \u0438 \u0432 \u043E\u0442\u0432\u0435\u0442\u044B \u043A\u043B\u0438\u0435\u043D\u0442\u0430\u043C:</i>",
+            `<code>${esc(client)}</code>`,
+            "",
+            "<b>\u0412\u0430\u0448\u0430 \u0441\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u043F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F</b>",
+            "<i>\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u0435\u0451. \u0423 \u0434\u0440\u0443\u0433\u0438\u0445 \u043B\u044E\u0434\u0435\u0439 \u043E\u043D\u0430 \u043E\u0442\u043A\u0440\u043E\u0435\u0442 \u043E\u0431\u044B\u0447\u043D\u0443\u044E \u0437\u0430\u043F\u0438\u0441\u044C.</i>",
+            `<code>${esc(admin)}</code>`
+          ].join("\n"),
+          kb: [[{ text: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F", app: { b: business.slug, view: "admin" } }]]
+        }
+      ];
+    } catch (e) {
+      return [{ html: e instanceof UserError ? esc(e.message) : "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043D\u044F\u0442\u044C \u043F\u0440\u0438\u0433\u043B\u0430\u0448\u0435\u043D\u0438\u0435" }];
+    }
+  }
+  if (payload.startsWith("adm_")) {
+    const business = await getBusiness(db(), payload.slice(4));
+    if (!business) return [await platformMenu(uid)];
+    const role = await roleFor(db(), uid, business.id, config.superadmins);
+    await setLastBusiness(db(), uid, business.id);
+    if (!role) {
+      await touchClient(db(), business.id, user);
+      return [await businessCard(uid, business)];
+    }
+    return [
+      {
+        html: `<b>\u041F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F</b> \xB7 ${esc(business.name)}`,
+        kb: [[{ text: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F", app: { b: business.slug, view: "admin" } }], [{ text: "\u041A\u0430\u043A \u0432\u0438\u0434\u044F\u0442 \u043A\u043B\u0438\u0435\u043D\u0442\u044B", app: { b: business.slug } }]]
+      }
+    ];
+  }
+  if (payload) {
+    const business = await getBusiness(db(), payload);
+    if (business && business.status === "active") {
+      await setLastBusiness(db(), uid, business.id);
+      const role = await roleFor(db(), uid, business.id, config.superadmins);
+      if (!role) await touchClient(db(), business.id, user);
+      return [await businessCard(uid, business)];
+    }
+    if (business) return [{ html: "\u0417\u0430\u043F\u0438\u0441\u044C \u0432 \u044D\u0442\u043E\u0442 \u0431\u0438\u0437\u043D\u0435\u0441 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430." }];
+  }
+  if (!payload && !isSuper(uid)) {
+    const mine = await businessesOfClient(db(), uid, 2);
+    if (mine.length > 1) return [await mastersList(uid)];
+  }
+  const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
+  if (u?.last_business_id && !payload) {
+    const business = await getBusiness(db(), Number(u.last_business_id));
+    if (business?.status === "active") return [await businessCard(uid, business)];
+  }
+  return [await platformMenu(uid)];
+}
+async function onOtherMessage(uid) {
+  const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
+  const business = u?.last_business_id ? await getBusiness(db(), Number(u.last_business_id)) : null;
+  if (!business) return platformMenu(uid);
+  const s = business.settings;
+  const contacts = [s.contactPhone && `<i>\u0422\u0435\u043B\u0435\u0444\u043E\u043D:</i> <code>${esc(s.contactPhone)}</code>`, ...s.links.map((l) => `<a href="${esc(l.url)}">${esc(l.title)}</a>`)].filter(Boolean).join("\n");
+  return {
+    html: `\u042F \u0431\u043E\u0442 \u043E\u043D\u043B\u0430\u0439\u043D-\u0437\u0430\u043F\u0438\u0441\u0438 \xAB${esc(business.name)}\xBB \u0438 \u043D\u0435 \u0447\u0438\u0442\u0430\u044E \u043F\u0435\u0440\u0435\u043F\u0438\u0441\u043A\u0443.${contacts ? `
+
+<b>\u0421\u0432\u044F\u0437\u0430\u0442\u044C\u0441\u044F \u043D\u0430\u043F\u0440\u044F\u043C\u0443\u044E</b>
+${contacts}` : ""}`,
+    kb: [[{ text: "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", app: { b: business.slug } }]]
+  };
+}
+async function onContact(uid, rawPhone) {
+  const pc = checkPhone(rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`);
+  if (!pc.ok) return;
+  const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
+  if (u?.last_business_id) {
+    await db().query(`update clients set phone = $3 where business_id = $1 and tg_id = $2`, [u.last_business_id, uid, pc.phone]);
+  }
+}
+var isSuper, nameLink, helpReply;
+var init_flows = __esm({
+  "server/flows.ts"() {
+    "use strict";
+    init_config();
+    init_db();
+    init_format();
+    init_phone();
+    init_store();
+    init_store();
+    isSuper = (id) => config.superadmins.includes(id);
+    nameLink = (u, platform) => platform === "tg" ? `<a href="tg://user?id=${u.id}">${esc(u.first_name)}</a>` : `${esc(u.first_name)} (MAX)`;
+    helpReply = (platform) => ({
+      html: `\u0417\u0430\u043F\u0438\u0441\u044C, \u043E\u0442\u043C\u0435\u043D\u0430 \u0438 \u043F\u0435\u0440\u0435\u043D\u043E\u0441 \u2014 \u0432 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0438 (\u043A\u043D\u043E\u043F\u043A\u0430 \xAB\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F\xBB).
+/start \u2014 \u0433\u043B\u0430\u0432\u043D\u043E\u0435 \u043C\u0435\u043D\u044E
+/masters \u2014 \u043C\u043E\u0438 \u043C\u0430\u0441\u0442\u0435\u0440\u0430
+/admin \u2014 \u043F\u0430\u043D\u0435\u043B\u044C \u0434\u043B\u044F \u0432\u043B\u0430\u0434\u0435\u043B\u044C\u0446\u0435\u0432 \u0431\u0438\u0437\u043D\u0435\u0441\u0430` + (platform === "max" ? "\n/id \u2014 \u0432\u0430\u0448 id \u0432 MAX" : "")
+    });
+  }
+});
+
+// server/maxbot.ts
+var maxbot_exports = {};
+__export(maxbot_exports, {
+  handleMaxUpdate: () => handleMaxUpdate,
+  maxUserToTg: () => maxUserToTg
+});
+async function reply(uid, replies) {
+  for (const r of Array.isArray(replies) ? replies : [replies]) await maxSend(uid, r.html, r.kb ?? []);
+}
+async function handleMaxUpdate(update) {
+  const type = update?.update_type ?? "";
+  if (type === "bot_started") {
+    const user = maxUserToTg(update.user);
+    await upsertUser(db(), user);
+    await reply(user.id, await onStart(user, String(update.payload ?? ""), "max"));
+    return;
+  }
+  if (type === "message_callback") {
+    const cb = update.callback ?? {};
+    const user = maxUserToTg(cb.user);
+    await upsertUser(db(), user);
+    await maxAnswerCallback(String(cb.callback_id ?? ""));
+    if (cb.payload === "masters") await reply(user.id, await mastersList(user.id));
+    return;
+  }
+  if (type === "message_created") {
+    const msg = update.message ?? {};
+    if (!msg.sender || msg.sender.is_bot || msg.recipient?.chat_type && msg.recipient.chat_type !== "dialog") return;
+    const user = maxUserToTg(msg.sender);
+    await upsertUser(db(), user);
+    const text = String(msg.body?.text ?? "").trim();
+    const contact = (msg.body?.attachments ?? []).find((a) => a?.type === "contact");
+    if (contact) {
+      const vcf = contact.payload?.vcf_info ?? "";
+      const phone = vcf.match(/TEL[^:]*:([+\d\s()-]+)/i)?.[1]?.replace(/[^\d+]/g, "");
+      if (phone) await onContact(user.id, phone);
+      return;
+    }
+    const [cmd, ...rest] = text.split(/\s+/);
+    switch (cmd?.toLowerCase()) {
+      case "/start":
+        return reply(user.id, await onStart(user, rest.join(" "), "max"));
+      case "/masters":
+        return reply(user.id, await mastersList(user.id));
+      case "/admin":
+        return reply(user.id, await platformMenu(user.id));
+      case "/help":
+        return reply(user.id, helpReply("max"));
+      case "/id":
+        return reply(user.id, { html: `\u0412\u0430\u0448 id \u0432 MAX: <code>${-user.id}</code>
+\u0412\u043D\u0443\u0442\u0440\u0435\u043D\u043D\u0438\u0439 id \u0432 \u0441\u0438\u0441\u0442\u0435\u043C\u0435: <code>${user.id}</code>` });
+      default:
+        return reply(user.id, await onOtherMessage(user.id));
+    }
+  }
+}
+var maxUserToTg;
+var init_maxbot = __esm({
+  "server/maxbot.ts"() {
+    "use strict";
+    init_db();
+    init_flows();
+    init_max();
+    init_store();
+    maxUserToTg = (u) => ({
+      id: fromMaxUserId(u.user_id),
+      first_name: u.first_name || u.username || "\u0413\u043E\u0441\u0442\u044C",
+      last_name: u.last_name || void 0,
+      username: u.username || void 0
+    });
+  }
+});
+
+// server/handler.ts
+import { webhookCallback } from "grammy";
+
+// server/auth.ts
+import { createHmac, timingSafeEqual } from "node:crypto";
+var AuthError = class extends Error {
+};
+var MAX_AGE_SEC = 7 * 24 * 3600;
+function verifyInitData(raw, botToken, nowMs = Date.now()) {
+  if (!raw) throw new AuthError("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445 \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u0438");
+  const params = new URLSearchParams(raw);
+  const hash = params.get("hash");
+  if (!hash) throw new AuthError("\u041D\u0435\u0442 \u043F\u043E\u0434\u043F\u0438\u0441\u0438");
+  params.delete("hash");
+  const dataCheck = [...params.entries()].map(([k, v]) => `${k}=${v}`).sort().join("\n");
+  const secret = createHmac("sha256", "WebAppData").update(botToken).digest();
+  const expected = createHmac("sha256", secret).update(dataCheck).digest();
+  const given = Buffer.from(hash, "hex");
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
+    throw new AuthError("\u041D\u0435\u0432\u0435\u0440\u043D\u0430\u044F \u043F\u043E\u0434\u043F\u0438\u0441\u044C");
+  }
+  const authDate = Number(params.get("auth_date"));
+  if (!authDate || nowMs / 1e3 - authDate > MAX_AGE_SEC) throw new AuthError("\u0421\u0435\u0441\u0441\u0438\u044F \u0443\u0441\u0442\u0430\u0440\u0435\u043B\u0430, \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0437\u0430\u043D\u043E\u0432\u043E");
+  const userRaw = params.get("user");
+  if (!userRaw) throw new AuthError("\u041D\u0435\u0442 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F");
+  const user = JSON.parse(userRaw);
+  return { user, startParam: params.get("start_param") ?? void 0, authDate };
+}
 
 // server/bot.ts
+init_config();
+init_db();
+init_flows();
+init_store();
+import { Bot, InlineKeyboard } from "grammy";
 var bot = null;
 function getBot() {
   if (bot) return bot;
@@ -1179,163 +1676,46 @@ function getBot() {
   register(bot);
   return bot;
 }
-var isSuper = (id) => config.superadmins.includes(id);
-async function showBusiness(ctx, b) {
-  const s = b.settings;
-  const uid = ctx.from.id;
-  const kb = new InlineKeyboard().webApp("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043E\u043D\u043B\u0430\u0439\u043D", webAppUrl({ b: b.slug })).row().webApp("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: b.slug, view: "my" }));
-  const others = (await businessesOfClient(db(), uid)).filter((x) => x.id !== b.id);
-  if (others.length) kb.row().text("\u0414\u0440\u0443\u0433\u0438\u0435 \u043C\u0430\u0441\u0442\u0435\u0440\u0430", "masters");
-  if (isSuper(uid)) kb.row().webApp("\u041F\u0430\u043D\u0435\u043B\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u044B", webAppUrl({ view: "super" }));
-  const lines = [`<b>${esc(b.name)}</b>`, "", esc(s.welcome)];
-  const info = [
-    s.address && `<i>\u0410\u0434\u0440\u0435\u0441:</i> ${esc(s.address)}`,
-    s.contactPhone && `<i>\u0422\u0435\u043B\u0435\u0444\u043E\u043D:</i> <code>${esc(s.contactPhone)}</code>`
-  ].filter(Boolean);
-  if (info.length) lines.push("", ...info);
-  await ctx.reply(lines.join("\n"), { parse_mode: "HTML", reply_markup: kb, link_preview_options: { is_disabled: true } });
-  await ctx.api.setChatMenuButton({ chat_id: ctx.chat.id, menu_button: { type: "web_app", text: "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", web_app: { url: webAppUrl({ b: b.slug }) } } }).catch(() => {
-  });
-}
-async function showPlatform(ctx) {
-  const uid = ctx.from.id;
-  const adminOf = await businessesOfAdmin(db(), uid);
+function tgKeyboard(rows) {
+  if (!rows?.length) return void 0;
   const kb = new InlineKeyboard();
-  for (const b of adminOf.slice(0, 5)) kb.webApp(`\u041F\u0430\u043D\u0435\u043B\u044C: ${b.name}`, webAppUrl({ b: b.slug, view: "admin" })).row();
-  if (isSuper(uid)) kb.webApp("\u041F\u0430\u043D\u0435\u043B\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u044B", webAppUrl({ view: "super" })).row();
-  const text = adminOf.length || isSuper(uid) ? "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435, \u0447\u0442\u043E \u043E\u0442\u043A\u0440\u044B\u0442\u044C:" : [
-    "<b>\u041E\u043D\u043B\u0430\u0439\u043D-\u0437\u0430\u043F\u0438\u0441\u044C</b>",
-    "",
-    "\u0427\u0442\u043E\u0431\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F, \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443 \u0432\u0430\u0448\u0435\u0433\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u2014 \u0438 \u0437\u0434\u0435\u0441\u044C \u043F\u043E\u044F\u0432\u0438\u0442\u0441\u044F \u0437\u0430\u043F\u0438\u0441\u044C \u043A \u043D\u0435\u043C\u0443."
-  ].join("\n");
-  await ctx.reply(text, { parse_mode: "HTML", reply_markup: adminOf.length || isSuper(uid) ? kb : void 0 });
+  rows.forEach((row2, i) => {
+    if (i) kb.row();
+    for (const b of row2) {
+      if (b.app) kb.webApp(b.text, webAppUrl(b.app));
+      else if (b.url) kb.url(b.text, b.url);
+      else kb.text(b.text, b.cb ?? "");
+    }
+  });
+  return kb;
 }
-async function showMasters(ctx) {
-  const list = await businessesOfClient(db(), ctx.from.id);
-  if (!list.length) {
-    await ctx.reply("\u0417\u0434\u0435\u0441\u044C \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u043C\u0430\u0441\u0442\u0435\u0440\u0430, \u043A \u043A\u043E\u0442\u043E\u0440\u044B\u043C \u0432\u044B \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u043B\u0438\u0441\u044C. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443 \u043C\u0430\u0441\u0442\u0435\u0440\u0430, \u0447\u0442\u043E\u0431\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F.");
-    return;
+async function send(ctx, replies) {
+  for (const r of Array.isArray(replies) ? replies : [replies]) {
+    await ctx.reply(r.html, { parse_mode: "HTML", reply_markup: tgKeyboard(r.kb), link_preview_options: { is_disabled: true } });
+    if (r.menuSlug) {
+      await ctx.api.setChatMenuButton({ chat_id: ctx.chat.id, menu_button: { type: "web_app", text: "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", web_app: { url: webAppUrl({ b: r.menuSlug }) } } }).catch(() => {
+      });
+    }
   }
-  const kb = new InlineKeyboard();
-  for (const b of list) kb.webApp(b.name, webAppUrl({ b: b.slug })).row();
-  await ctx.reply("<b>\u0412\u0430\u0448\u0438 \u043C\u0430\u0441\u0442\u0435\u0440\u0430</b>\n<i>\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435, \u043A \u043A\u043E\u043C\u0443 \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u0438\u043B\u0438 \u043F\u043E\u0441\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u0438.</i>", {
-    parse_mode: "HTML",
-    reply_markup: kb
-  });
 }
 function register(b) {
   b.use(async (ctx, next) => {
     if (ctx.from && !ctx.from.is_bot) await upsertUser(db(), ctx.from);
     await next();
   });
-  b.command("start", async (ctx) => {
-    const payload = (ctx.match ?? "").trim();
-    const uid = ctx.from.id;
-    if (payload.startsWith("inv_")) {
-      try {
-        const { business, role } = await claimInvite(db(), payload.slice(4), uid);
-        await setLastBusiness(db(), uid, business.id);
-        const kb = new InlineKeyboard().webApp("\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F", webAppUrl({ b: business.slug, view: "admin" }));
-        await ctx.reply(
-          [
-            `<b>\u0413\u043E\u0442\u043E\u0432\u043E.</b> \u0412\u044B ${role === "owner" ? "\u0432\u043B\u0430\u0434\u0435\u043B\u0435\u0446" : "\u0430\u0434\u043C\u0438\u043D\u0438\u0441\u0442\u0440\u0430\u0442\u043E\u0440"} \xAB${esc(business.name)}\xBB.`,
-            "",
-            "\u0412 \u043F\u0430\u043D\u0435\u043B\u0438 \u043C\u043E\u0436\u043D\u043E \u043F\u043E\u043C\u0435\u043D\u044F\u0442\u044C \u0443\u0441\u043B\u0443\u0433\u0438, \u0446\u0435\u043D\u044B, \u0433\u0440\u0430\u0444\u0438\u043A \u0438 \u0442\u0435\u043A\u0441\u0442\u044B.",
-            "",
-            "<b>\u0421\u0441\u044B\u043B\u043A\u0430 \u0434\u043B\u044F \u043A\u043B\u0438\u0435\u043D\u0442\u043E\u0432</b>",
-            "<i>\u041F\u043E\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0435\u0451 \u0432 \u0448\u0430\u043F\u043A\u0443 \u043A\u0430\u043D\u0430\u043B\u0430, Instagram \u0438 \u0432 \u043E\u0442\u0432\u0435\u0442\u044B \u043A\u043B\u0438\u0435\u043D\u0442\u0430\u043C:</i>",
-            `<code>${esc(clientLink(business.slug))}</code>`,
-            "",
-            "<b>\u0412\u0430\u0448\u0430 \u0441\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u043F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F</b>",
-            "<i>\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 \u0435\u0451. \u0423 \u0434\u0440\u0443\u0433\u0438\u0445 \u043B\u044E\u0434\u0435\u0439 \u043E\u043D\u0430 \u043E\u0442\u043A\u0440\u043E\u0435\u0442 \u043E\u0431\u044B\u0447\u043D\u0443\u044E \u0437\u0430\u043F\u0438\u0441\u044C.</i>",
-            `<code>${esc(adminLink(business.slug))}</code>`
-          ].join("\n"),
-          { parse_mode: "HTML", reply_markup: kb, link_preview_options: { is_disabled: true } }
-        );
-        if (role === "owner") {
-          const { notifySuperadmins: notifySuperadmins2 } = await Promise.resolve().then(() => (init_notify(), notify_exports));
-          await notifySuperadmins2(
-            `<b>\u041F\u0440\u0438\u0433\u043B\u0430\u0448\u0435\u043D\u0438\u0435 \u043F\u0440\u0438\u043D\u044F\u0442\u043E:</b> \xAB${esc(business.name)}\xBB \u2192 <a href="tg://user?id=${uid}">${esc(ctx.from.first_name)}</a>`
-          );
-        }
-      } catch (e) {
-        await ctx.reply(e instanceof UserError ? e.message : "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u0438\u043D\u044F\u0442\u044C \u043F\u0440\u0438\u0433\u043B\u0430\u0448\u0435\u043D\u0438\u0435");
-      }
-      return;
-    }
-    if (payload.startsWith("adm_")) {
-      const business = await getBusiness(db(), payload.slice(4));
-      if (!business) return showPlatform(ctx);
-      const role = await roleFor(db(), uid, business.id, config.superadmins);
-      await setLastBusiness(db(), uid, business.id);
-      if (!role) {
-        await touchClient(db(), business.id, ctx.from);
-        return showBusiness(ctx, business);
-      }
-      const kb = new InlineKeyboard().webApp("\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F", webAppUrl({ b: business.slug, view: "admin" })).row().webApp("\u041A\u0430\u043A \u0432\u0438\u0434\u044F\u0442 \u043A\u043B\u0438\u0435\u043D\u0442\u044B", webAppUrl({ b: business.slug }));
-      return ctx.reply(`<b>\u041F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F</b> \xB7 ${esc(business.name)}`, { parse_mode: "HTML", reply_markup: kb });
-    }
-    if (payload) {
-      const business = await getBusiness(db(), payload);
-      if (business && business.status === "active") {
-        await setLastBusiness(db(), uid, business.id);
-        const role = await roleFor(db(), uid, business.id, config.superadmins);
-        if (!role) await touchClient(db(), business.id, ctx.from);
-        return showBusiness(ctx, business);
-      }
-      if (business) return ctx.reply("\u0417\u0430\u043F\u0438\u0441\u044C \u0432 \u044D\u0442\u043E\u0442 \u0431\u0438\u0437\u043D\u0435\u0441 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.");
-    }
-    if (!payload && !isSuper(uid)) {
-      const mine = await businessesOfClient(db(), uid, 2);
-      if (mine.length > 1) return showMasters(ctx);
-    }
-    const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
-    if (u?.last_business_id && !payload) {
-      const business = await getBusiness(db(), Number(u.last_business_id));
-      if (business?.status === "active") return showBusiness(ctx, business);
-    }
-    return showPlatform(ctx);
-  });
-  b.command("admin", (ctx) => showPlatform(ctx));
-  b.command("masters", (ctx) => showMasters(ctx));
+  b.command("start", async (ctx) => send(ctx, await onStart(ctx.from, String(ctx.match ?? ""), "tg")));
+  b.command("admin", async (ctx) => send(ctx, await platformMenu(ctx.from.id)));
+  b.command("masters", async (ctx) => send(ctx, await mastersList(ctx.from.id)));
   b.callbackQuery("masters", async (ctx) => {
     await ctx.answerCallbackQuery();
-    await showMasters(ctx);
+    await send(ctx, await mastersList(ctx.from.id));
   });
-  b.command(
-    "help",
-    (ctx) => ctx.reply(
-      "\u0417\u0430\u043F\u0438\u0441\u044C, \u043E\u0442\u043C\u0435\u043D\u0430 \u0438 \u043F\u0435\u0440\u0435\u043D\u043E\u0441 \u2014 \u0432 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0438 (\u043A\u043D\u043E\u043F\u043A\u0430 \xAB\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F\xBB \u0432\u043D\u0438\u0437\u0443).\n/start \u2014 \u0433\u043B\u0430\u0432\u043D\u043E\u0435 \u043C\u0435\u043D\u044E\n/admin \u2014 \u043F\u0430\u043D\u0435\u043B\u044C \u0434\u043B\u044F \u0432\u043B\u0430\u0434\u0435\u043B\u044C\u0446\u0435\u0432 \u0431\u0438\u0437\u043D\u0435\u0441\u0430"
-    )
-  );
+  b.command("help", (ctx) => send(ctx, helpReply("tg")));
   b.on("message:contact", async (ctx) => {
     const c = ctx.message.contact;
-    if (c.user_id !== ctx.from.id) return;
-    const pc = checkPhone(c.phone_number.startsWith("+") ? c.phone_number : `+${c.phone_number}`);
-    if (!pc.ok) return;
-    const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [ctx.from.id]);
-    if (u?.last_business_id) {
-      await db().query(`update clients set phone = $3 where business_id = $1 and tg_id = $2`, [u.last_business_id, ctx.from.id, pc.phone]);
-    }
+    if (c.user_id === ctx.from.id) await onContact(ctx.from.id, c.phone_number);
   });
-  b.on("message", async (ctx) => {
-    const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [ctx.from.id]);
-    const business = u?.last_business_id ? await getBusiness(db(), Number(u.last_business_id)) : null;
-    if (!business) return showPlatform(ctx);
-    const s = business.settings;
-    const contacts = [s.contactPhone && `<i>\u0422\u0435\u043B\u0435\u0444\u043E\u043D:</i> <code>${esc(s.contactPhone)}</code>`, ...s.links.map((l) => `<a href="${esc(l.url)}">${esc(l.title)}</a>`)].filter(Boolean).join("\n");
-    await ctx.reply(
-      `\u042F \u0431\u043E\u0442 \u043E\u043D\u043B\u0430\u0439\u043D-\u0437\u0430\u043F\u0438\u0441\u0438 \xAB${esc(business.name)}\xBB \u0438 \u043D\u0435 \u0447\u0438\u0442\u0430\u044E \u043F\u0435\u0440\u0435\u043F\u0438\u0441\u043A\u0443.${contacts ? `
-
-<b>\u0421\u0432\u044F\u0437\u0430\u0442\u044C\u0441\u044F \u043D\u0430\u043F\u0440\u044F\u043C\u0443\u044E</b>
-${contacts}` : ""}`,
-      {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().webApp("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", webAppUrl({ b: business.slug })),
-        link_preview_options: { is_disabled: true }
-      }
-    );
-  });
+  b.on("message", async (ctx) => send(ctx, await onOtherMessage(ctx.from.id)));
   b.on("my_chat_member", async (ctx) => {
     if (ctx.myChatMember.new_chat_member.status === "kicked") {
       await db().query(`update clients set blocked_bot = true where tg_id = $1`, [ctx.from.id]);
@@ -1346,10 +1726,13 @@ ${contacts}` : ""}`,
 
 // server/handler.ts
 init_config();
+init_db();
 
 // server/cron.ts
-import { DateTime as DateTime4 } from "luxon";
+init_db();
 init_notify();
+init_store();
+import { DateTime as DateTime4 } from "luxon";
 async function runReminders(now = /* @__PURE__ */ new Date()) {
   const rows = await db().query(
     `select b.*, z.timezone as tz from bookings b join businesses z on z.id = b.business_id
@@ -1392,9 +1775,14 @@ async function runReminders(now = /* @__PURE__ */ new Date()) {
 
 // server/rpc.ts
 init_config();
-import { DateTime as DateTime5 } from "luxon";
+init_db();
 init_notify();
+init_slots();
+init_store();
+init_store();
 init_telegram();
+init_templates();
+import { DateTime as DateTime5 } from "luxon";
 var int = (v, name) => {
   const n = Number(v);
   if (!Number.isInteger(n)) throw new UserError(`\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0435 \u043F\u043E\u043B\u0435 ${name}`);
@@ -1404,8 +1792,15 @@ var str = (v, max = 500) => String(v ?? "").trim().slice(0, max);
 function publicBusiness(b) {
   return { id: b.id, slug: b.slug, name: b.name, template: b.template, status: b.status, timezone: b.timezone, settings: b.settings };
 }
+var maxOn = () => Boolean(config.maxBotToken && config.maxBotName);
 function links(b) {
-  return { client: clientLink(b.slug), admin: adminLink(b.slug), botStart: `https://t.me/${config.botUsername}?start=${b.slug}` };
+  return {
+    client: clientLink(b.slug),
+    admin: adminLink(b.slug),
+    botStart: `https://t.me/${config.botUsername}?start=${b.slug}`,
+    // те же ссылки для MAX — когда бот MAX подключён
+    ...maxOn() ? { maxClient: maxClientLink(b.slug), maxAdmin: maxAdminLink(b.slug) } : {}
+  };
 }
 async function catalog(b) {
   const [services, staff, portfolio] = await Promise.all([
@@ -1779,7 +2174,7 @@ async function adminInvite(ctx, p) {
   const role = p.role === "owner" ? "owner" : "admin";
   if (role === "owner" && ctx.role !== "super" && ctx.role !== "owner") throw new UserError("\u041D\u0435\u0442 \u043F\u0440\u0430\u0432");
   const code = await createInvite(db(), ctx.business.id, role, ctx.init.user.id);
-  return { link: inviteLink(code), role };
+  return { link: inviteLink(code), maxLink: maxOn() ? maxInviteLink(code) : void 0, role };
 }
 async function adminRemove(ctx, p) {
   const tgId = int(p.tgId, "tgId");
@@ -1817,7 +2212,7 @@ async function superCreate(ctx, p) {
     timezone: p.timezone ? str(p.timezone, 60) : void 0
   });
   const code = await createInvite(db(), b.id, "owner", ctx.init.user.id);
-  return { business: publicBusiness(b), links: links(b), ownerInvite: inviteLink(code) };
+  return { business: publicBusiness(b), links: links(b), ownerInvite: inviteLink(code), ownerInviteMax: maxOn() ? maxInviteLink(code) : void 0 };
 }
 async function superSetStatus(_ctx, p) {
   const status2 = p.status === "blocked" ? "blocked" : "active";
@@ -1881,7 +2276,11 @@ async function dispatch(method, params, ctx) {
 }
 
 // server/handler.ts
+init_store();
 init_telegram();
+init_max();
+import { timingSafeEqual as timingSafeEqual2 } from "node:crypto";
+var maxHelpers = { decodeMaxStart, fromMaxUserId };
 var json = (data, status2 = 200, headers = {}) => new Response(JSON.stringify(data), { status: status2, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
 var webhook = null;
 function cronAuthorized(req, url) {
@@ -1892,6 +2291,9 @@ function cronAuthorized(req, url) {
 }
 var platformLoadedAt = 0;
 var webhookEnsured = false;
+var maxEnsured = false;
+var maxState = { bot: null, webhook: null, error: null };
+var maxWebhookUrl = () => `${config.publicUrl}/api/max`;
 async function refreshPlatform(force = false) {
   if (!force && Date.now() - platformLoadedAt < 6e4) return;
   platformLoadedAt = Date.now();
@@ -1912,11 +2314,41 @@ async function refreshPlatform(force = false) {
   } catch (e) {
     console.error("bot setup", e);
   }
+  if (config.maxBotToken && config.isProduction && !maxEnsured) {
+    try {
+      const { setupMax: setupMax2 } = await Promise.resolve().then(() => (init_max(), max_exports));
+      Object.assign(maxState, await setupMax2(maxWebhookUrl()), { error: null });
+      maxEnsured = true;
+    } catch (e) {
+      maxState.error = String(e?.message ?? e).slice(0, 200);
+      console.error("max setup", e);
+    }
+  }
+}
+function verifyMaxInit(raw) {
+  if (!config.maxBotToken) throw new AuthError("MAX \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D");
+  const init = verifyInitData(raw, config.maxBotToken);
+  const { decodeMaxStart: decodeMaxStart2, fromMaxUserId: fromMaxUserId2 } = maxHelpers;
+  return { ...init, user: { ...init.user, id: fromMaxUserId2(init.user.id) }, startParam: decodeMaxStart2(init.startParam).b };
+}
+async function maxWebhook(req) {
+  const got = Buffer.from(req.headers.get("x-max-bot-api-secret") ?? "");
+  const want = Buffer.from(config.maxWebhookSecret);
+  if (!config.maxBotToken || got.length !== want.length || !timingSafeEqual2(got, want)) return new Response("forbidden", { status: 403 });
+  const update = await req.json().catch(() => null);
+  try {
+    const { handleMaxUpdate: handleMaxUpdate2 } = await Promise.resolve().then(() => (init_maxbot(), maxbot_exports));
+    await handleMaxUpdate2(update);
+  } catch (e) {
+    console.error("max update", e);
+  }
+  return json({ ok: true });
 }
 async function rpc(req) {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   try {
-    const init = verifyInitData(req.headers.get("x-init-data") ?? "", config.botToken);
+    const maxRaw = req.headers.get("x-max-init-data");
+    const init = maxRaw ? verifyMaxInit(maxRaw) : verifyInitData(req.headers.get("x-init-data") ?? "", config.botToken);
     const body = await req.json();
     const result = await dispatch(String(body.method ?? ""), body.params ?? {}, { init });
     return json({ result });
@@ -1979,7 +2411,8 @@ async function status() {
     lastError: info?.last_error_message ?? null,
     superadmins: config.superadmins.length,
     publicUrl: config.publicUrl,
-    production: config.isProduction
+    production: config.isProduction,
+    max: config.maxBotToken ? { ...maxState, bot: config.maxBotName || maxState.bot } : "\u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D (\u043D\u0435\u0442 MAX_BOT_TOKEN)"
   });
 }
 async function handle(req) {
@@ -1997,6 +2430,8 @@ async function handle(req) {
       webhook ??= webhookCallback(getBot(), "std/http", { timeoutMilliseconds: 25e3 });
       return webhook(req);
     }
+    case "max":
+      return maxWebhook(req);
     case "photo":
       return photo(url);
     case "cron":
@@ -2015,8 +2450,8 @@ async function handle(req) {
 
 // server/entry.ts
 var entry_default = {
-  fetch(request) {
-    return handle(request);
+  fetch(request2) {
+    return handle(request2);
   }
 };
 export {

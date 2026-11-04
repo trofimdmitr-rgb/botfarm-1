@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { WA, inTelegram, haptic, useTheme } from "./lib";
+import { MAXA, WA, inMax, inTelegram, haptic, useTheme } from "./lib";
 
 /** Главная кнопка Telegram (внизу экрана). Вне Telegram рисуем свою. */
 export function MainButton(props: {
@@ -72,8 +72,9 @@ export function useBackButton(onBack: (() => void) | null) {
   const ref = useRef(onBack);
   ref.current = onBack;
   useEffect(() => {
-    if (!inTelegram) return;
-    const bb = WA.BackButton;
+    // кнопка «Назад» в шапке есть и в Telegram, и в MAX
+    const bb = inTelegram ? WA.BackButton : inMax ? MAXA.BackButton : null;
+    if (!bb) return;
     if (!onBack) {
       bb.hide();
       return;
@@ -89,7 +90,7 @@ export function useBackButton(onBack: (() => void) | null) {
 
 export function BackLink({ onBack }: { onBack: (() => void) | null }) {
   useBackButton(onBack);
-  if (inTelegram || !onBack) return null;
+  if (inTelegram || inMax || !onBack) return null;
   return (
     <button className="backlink" onClick={onBack}>
       ← Назад

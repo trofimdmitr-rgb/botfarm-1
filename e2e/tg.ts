@@ -140,7 +140,65 @@ export async function settle(page: Page, ms = 900) {
 }
 
 export const tg = {
-  state: (page: Page) => page.evaluate(() => (window as any).__tg.state),
+  // в MAX имитации Telegram нет — считаем, что нативной кнопки нет
+  state: (page: Page) => page.evaluate(() => (window as any).__tg?.state ?? { main: { visible: false, text: "" }, back: false, alerts: [], confirms: [] }),
   clickMain: (page: Page) => page.evaluate(() => (window as any).__tg.clickMain()),
   clickBack: (page: Page) => page.evaluate(() => (window as any).__tg.clickBack()),
+};
+
+// ---------- MAX ----------
+export const MAX_TOKEN = "max-local-token"; // как в dev/local-server.ts
+
+export function signMaxInitData(maxUserId: number, startParam = ""): string {
+  const fields: Record<string, string> = {
+    auth_date: String(Math.floor(Date.now() / 1000)),
+    query_id: "e2e",
+    user: JSON.stringify({ id: maxUserId, first_name: "Ира", last_name: "", username: "ira", language_code: "ru", photo_url: "" }),
+    chat: JSON.stringify({ id: 1, type: "DIALOG" }),
+  };
+  if (startParam) fields.start_param = startParam;
+  const check = Object.keys(fields)
+    .sort()
+    .map((k) => `${k}=${fields[k]}`)
+    .join("\n");
+  const secret = createHmac("sha256", "WebAppData").update(MAX_TOKEN).digest();
+  return new URLSearchParams({ ...fields, hash: createHmac("sha256", secret).update(check).digest("hex") }).toString();
+}
+
+/** Открыть мини-апп «как в MAX»: мост window.WebApp, параметр запуска «slug__view», без темы и без нижней кнопки. */
+export async function openInMax(page: Page, o: { maxUser: number; start: string }): Promise<Opened> {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !/favicon|Failed to load resource/i.test(m.text())) errors.push(`console: ${m.text()}`);
+  });
+  await page.route("https://telegram.org/**", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+  await page.route("https://st.max.ru/**", (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+  const initData = signMaxInitData(o.maxUser, o.start);
+  const [b, view] = o.start.split("__");
+  await page.addInitScript(`(() => {
+    const state = { back: false, shared: [], links: [] }; const backHandlers = new Set();
+    window.__max = { state, clickBack() { if (!state.back) return false; backHandlers.forEach((h) => h()); return true; } };
+    window.WebApp = {
+      initData: ${JSON.stringify(initData)},
+      initDataUnsafe: { user: { id: ${o.maxUser}, first_name: "Ира" }, start_param: ${JSON.stringify(o.start)}, chat: { id: 1, type: "DIALOG" } },
+      platform: "android", version: "26.1.0",
+      BackButton: { get isVisible() { return state.back; }, show() { state.back = true; }, hide() { state.back = false; }, onClick(h) { backHandlers.add(h); }, offClick(h) { backHandlers.delete(h); } },
+      HapticFeedback: { impactOccurred() {}, notificationOccurred() {}, selectionChanged() {} },
+      openLink(u) { state.links.push(u); }, openMaxLink(u) { state.links.push(u); },
+      shareMaxContent(p) { state.shared.push(p); },
+      requestContact() { return Promise.resolve({ phone: "+79271234567", authDate: "0", hash: "x" }); },
+    };
+  })();`);
+  void b;
+  void view;
+  await page.goto(`${BASE}/?max=1`);
+  await page.waitForSelector(".page", { timeout: 15_000 });
+  await settle(page);
+  return { errors, viewport: page.viewportSize()! };
+}
+
+export const max = {
+  state: (page: Page) => page.evaluate(() => (window as any).__max.state),
+  clickBack: (page: Page) => page.evaluate(() => (window as any).__max.clickBack()),
 };

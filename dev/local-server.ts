@@ -9,6 +9,8 @@ process.env.BOT_TOKEN ||= "100000:LOCAL_DEV_TOKEN";
 process.env.BOT_USERNAME ||= "local_farm_bot";
 process.env.SUPERADMIN_IDS ||= "1";
 process.env.PUBLIC_URL ||= "http://localhost:8787";
+process.env.MAX_BOT_TOKEN ||= "max-local-token"; // для автотестов мини-аппа в MAX
+process.env.MAX_BOT_USERNAME ||= "local_max_bot";
 
 const { createPgliteDb } = await import("../server/pglite");
 const { setDb } = await import("../server/db");

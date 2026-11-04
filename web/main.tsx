@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useLayoutEffect, useMemo, useState } from "react
 import { createRoot } from "react-dom/client";
 import { AdminPanel } from "./admin";
 import { BookFlow, BusinessHome, ClientTabBar, type ClientTab, MyBookings, PortfolioScreen } from "./client";
-import { api, applyTheme, enableDragScroll, ensureDevAuth, inTelegram, makeTheme, ThemeContext, urlParams, useBannerTone, WA } from "./lib";
+import { api, applyTheme, enableDragScroll, ensureDevAuth, inMax, inTelegram, makeTheme, ThemeContext, urlParams, useBannerTone, WA } from "./lib";
 import { Landing, SuperPanel } from "./platform";
 import type { Boot } from "./types";
 import { ErrorBox, Spinner } from "./ui";
@@ -161,6 +161,7 @@ function App() {
 }
 
 if (inTelegram) document.documentElement.classList.add("tg");
+if (inMax) document.documentElement.classList.add("max");
 enableDragScroll();
 
 createRoot(document.getElementById("root")!).render(

@@ -20,25 +20,39 @@ export function rawApi(): Api {
   return api;
 }
 
+/**
+ * Отправка сообщений. Отрицательный id — пользователь MAX (см. max.ts): такое сообщение уходит в MAX,
+ * кнопки Telegram переводятся в кнопки MAX. Фото всегда хранятся в Telegram (file_id), поэтому фото
+ * от мастера из MAX кладём в служебный чат Telegram.
+ */
 export function tg(): Sender {
   if (override) return override;
   const a = rawApi();
   return {
-    sendMessage: (chatId, html, extra) =>
-      a.sendMessage(chatId, html, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...extra }),
+    sendMessage: async (chatId, html, extra) => {
+      if (chatId < 0) {
+        const { maxSend, btnsFromTelegram } = await import("./max.js");
+        return maxSend(chatId, html, btnsFromTelegram(extra));
+      }
+      return a.sendMessage(chatId, html, { parse_mode: "HTML", link_preview_options: { is_disabled: true }, ...extra });
+    },
     sendPhoto: async (chatId, photo, caption) => {
       const { InputFile } = await import("grammy");
-      const msg = await a.sendPhoto(chatId, new InputFile(photo), { caption });
+      const target = chatId < 0 ? config.tgStorageChat : chatId;
+      if (!target) throw new Error("Некуда сохранить фото: задайте TG_STORAGE_CHAT_ID");
+      const msg = await a.sendPhoto(target, new InputFile(photo), { caption });
       const sizes = msg.photo ?? [];
       return { file_id: sizes[sizes.length - 1].file_id };
     },
-    setChatMenuButton: (chatId, text, url) =>
-      a.setChatMenuButton({ chat_id: chatId, menu_button: { type: "web_app", text, web_app: { url } } }),
+    setChatMenuButton: async (chatId, text, url) => {
+      if (chatId < 0) return null; // в MAX кнопка мини-аппа настраивается в кабинете бота
+      return a.setChatMenuButton({ chat_id: chatId, menu_button: { type: "web_app", text, web_app: { url } } });
+    },
   };
 }
 
 /** Ошибка «пользователь заблокировал бота / не начинал диалог». */
 export function isBlockedError(e: unknown): boolean {
   const err = e as { error_code?: number; description?: string };
-  return err?.error_code === 403 || /blocked|chat not found|deactivated/i.test(err?.description ?? "");
+  return err?.error_code === 403 || /blocked|chat not found|deactivated|chat\.denied|dialog|not\.found/i.test(err?.description ?? "");
 }

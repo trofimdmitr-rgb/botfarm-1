@@ -17,6 +17,8 @@ import {
   photoUrl,
   rub,
   useTheme,
+  inMax,
+  MAXA,
 } from "./lib";
 import { checkPhone, maskPhone } from "../server/phone";
 import type { Boot, Booking, Service, Slot } from "./types";
@@ -280,16 +282,27 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
     setPhone(next);
     if (phoneErr) setPhoneErr(next && !checkPhone(next).ok ? phoneErr : null);
   };
-  const canShareContact = !!WA?.requestContact && WA?.isVersionAtLeast?.("6.9");
-  const takeFromTelegram = () =>
+  // «Взять номер из Telegram / MAX»: номер, подтверждённый самим мессенджером
+  const canShareContact = inMax ? !!MAXA.requestContact : !!WA?.requestContact && WA?.isVersionAtLeast?.("6.9");
+  const takeFromTelegram = () => {
+    const put = (raw?: string) => {
+      if (!raw) return;
+      setPhone(maskPhone(raw.startsWith("+") ? raw : `+${raw}`));
+      setPhoneErr(null);
+      haptic("success");
+    };
+    if (inMax) {
+      MAXA.requestContact()
+        .then((r: any) => put(r?.phone))
+        .catch(() => {});
+      return;
+    }
     WA.requestContact((ok: boolean, res: any) => {
       const raw: string | undefined = res?.responseUnsafe?.contact?.phone_number;
-      if (ok && raw) {
-        setPhone(maskPhone(raw.startsWith("+") ? raw : `+${raw}`));
-        setPhoneErr(null);
-        haptic("success");
-      } else if (ok) alertMsg("Номер отправлен в чат с ботом. Если поле не заполнилось — введите его вручную.");
+      if (ok && raw) put(raw);
+      else if (ok) alertMsg("Номер отправлен в чат с ботом. Если поле не заполнилось — введите его вручную.");
     });
+  };
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [comment, setComment] = useState("");
   const [done, setDone] = useState<{ starts_at: string } | null>(null);
@@ -417,7 +430,7 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
               />
               {canShareContact && (
                 <button type="button" className="btn btn-secondary btn-small share-phone" onClick={takeFromTelegram}>
-                  <Icon name="phone" size={14} /> Взять номер из Telegram
+                  <Icon name="phone" size={14} /> Взять номер из {inMax ? "MAX" : "Telegram"}
                 </button>
               )}
               {s.fields.map((f) => (

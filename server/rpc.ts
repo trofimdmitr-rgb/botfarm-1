@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { type InitData } from "./auth.js";
-import { adminLink, clientLink, config, inviteLink, webAppUrl } from "./config.js";
+import { adminLink, clientLink, config, inviteLink, maxAdminLink, maxClientLink, maxInviteLink, webAppUrl } from "./config.js";
 import { db } from "./db.js";
 import { esc } from "./format.js";
 import * as notify from "./notify.js";
@@ -33,8 +33,16 @@ function publicBusiness(b: Business) {
   return { id: b.id, slug: b.slug, name: b.name, template: b.template, status: b.status, timezone: b.timezone, settings: b.settings };
 }
 
+const maxOn = () => Boolean(config.maxBotToken && config.maxBotName);
+
 function links(b: Business) {
-  return { client: clientLink(b.slug), admin: adminLink(b.slug), botStart: `https://t.me/${config.botUsername}?start=${b.slug}` };
+  return {
+    client: clientLink(b.slug),
+    admin: adminLink(b.slug),
+    botStart: `https://t.me/${config.botUsername}?start=${b.slug}`,
+    // те же ссылки для MAX — когда бот MAX подключён
+    ...(maxOn() ? { maxClient: maxClientLink(b.slug), maxAdmin: maxAdminLink(b.slug) } : {}),
+  };
 }
 
 async function catalog(b: Business) {
@@ -444,7 +452,7 @@ async function adminInvite(ctx: BizCtx, p: P) {
   const role = p.role === "owner" ? "owner" : "admin";
   if (role === "owner" && ctx.role !== "super" && ctx.role !== "owner") throw new UserError("Нет прав");
   const code = await store.createInvite(db(), ctx.business.id, role, ctx.init.user.id);
-  return { link: inviteLink(code), role };
+  return { link: inviteLink(code), maxLink: maxOn() ? maxInviteLink(code) : undefined, role };
 }
 
 async function adminRemove(ctx: BizCtx, p: P) {
@@ -489,7 +497,7 @@ async function superCreate(ctx: Ctx, p: P) {
     timezone: p.timezone ? str(p.timezone, 60) : undefined,
   });
   const code = await store.createInvite(db(), b.id, "owner", ctx.init.user.id);
-  return { business: publicBusiness(b), links: links(b), ownerInvite: inviteLink(code) };
+  return { business: publicBusiness(b), links: links(b), ownerInvite: inviteLink(code), ownerInviteMax: maxOn() ? maxInviteLink(code) : undefined };
 }
 
 async function superSetStatus(_ctx: Ctx, p: P) {

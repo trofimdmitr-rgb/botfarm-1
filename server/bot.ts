@@ -1,11 +1,11 @@
+// Telegram-бот: принимает обновления через вебхук (grammY), логика ответов — в flows.ts (общая с MAX).
 import { Bot, type Context, InlineKeyboard } from "grammy";
 import type { UserFromGetMe } from "grammy/types";
-import { adminLink, clientLink, config, webAppUrl } from "./config.js";
+import { config, webAppUrl } from "./config.js";
 import { db } from "./db.js";
-import { esc } from "./format.js";
-import { checkPhone } from "./phone.js";
+import * as flows from "./flows.js";
+import type { Btn } from "./max.js";
 import * as store from "./store.js";
-import { UserError } from "./store.js";
 
 let bot: Bot | null = null;
 
@@ -28,60 +28,31 @@ export function getBot(): Bot {
   return bot;
 }
 
-const isSuper = (id: number) => config.superadmins.includes(id);
-
-async function showBusiness(ctx: Context, b: store.Business) {
-  const s = b.settings;
-  const uid = ctx.from!.id;
-  const kb = new InlineKeyboard()
-    .webApp("Записаться онлайн", webAppUrl({ b: b.slug }))
-    .row()
-    .webApp("Мои записи", webAppUrl({ b: b.slug, view: "my" }));
-  // у кого несколько мастеров — кнопка ко всему списку; суперадмину — вход в панель платформы
-  const others = (await store.businessesOfClient(db(), uid)).filter((x) => x.id !== b.id);
-  if (others.length) kb.row().text("Другие мастера", "masters");
-  if (isSuper(uid)) kb.row().webApp("Панель платформы", webAppUrl({ view: "super" }));
-  const lines = [`<b>${esc(b.name)}</b>`, "", esc(s.welcome)];
-  const info = [
-    s.address && `<i>Адрес:</i> ${esc(s.address)}`,
-    s.contactPhone && `<i>Телефон:</i> <code>${esc(s.contactPhone)}</code>`,
-  ].filter(Boolean);
-  if (info.length) lines.push("", ...(info as string[]));
-  await ctx.reply(lines.join("\n"), { parse_mode: "HTML", reply_markup: kb, link_preview_options: { is_disabled: true } });
-  await ctx.api
-    .setChatMenuButton({ chat_id: ctx.chat!.id, menu_button: { type: "web_app", text: "Записаться", web_app: { url: webAppUrl({ b: b.slug }) } } })
-    .catch(() => {});
-}
-
-async function showPlatform(ctx: Context) {
-  const uid = ctx.from!.id;
-  const adminOf = await store.businessesOfAdmin(db(), uid);
+/** Нейтральные кнопки → клавиатура Telegram. */
+export function tgKeyboard(rows: Btn[][] | undefined): InlineKeyboard | undefined {
+  if (!rows?.length) return undefined;
   const kb = new InlineKeyboard();
-  for (const b of adminOf.slice(0, 5)) kb.webApp(`Панель: ${b.name}`, webAppUrl({ b: b.slug, view: "admin" })).row();
-  if (isSuper(uid)) kb.webApp("Панель платформы", webAppUrl({ view: "super" })).row();
-  const text = adminOf.length || isSuper(uid)
-    ? "Выберите, что открыть:"
-    : [
-        "<b>Онлайн-запись</b>",
-        "",
-        "Чтобы записаться, откройте ссылку вашего мастера — и здесь появится запись к нему.",
-      ].join("\n");
-  await ctx.reply(text, { parse_mode: "HTML", reply_markup: adminOf.length || isSuper(uid) ? kb : undefined });
-}
-
-/** Все бизнесы, куда человек записывался или заходил, — переключение одним нажатием. */
-async function showMasters(ctx: Context) {
-  const list = await store.businessesOfClient(db(), ctx.from!.id);
-  if (!list.length) {
-    await ctx.reply("Здесь появятся мастера, к которым вы записывались. Откройте ссылку мастера, чтобы записаться.");
-    return;
-  }
-  const kb = new InlineKeyboard();
-  for (const b of list) kb.webApp(b.name, webAppUrl({ b: b.slug })).row();
-  await ctx.reply("<b>Ваши мастера</b>\n<i>Выберите, к кому записаться или посмотреть записи.</i>", {
-    parse_mode: "HTML",
-    reply_markup: kb,
+  rows.forEach((row, i) => {
+    if (i) kb.row();
+    for (const b of row) {
+      if (b.app) kb.webApp(b.text, webAppUrl(b.app));
+      else if (b.url) kb.url(b.text, b.url);
+      else kb.text(b.text, b.cb ?? "");
+    }
   });
+  return kb;
+}
+
+async function send(ctx: Context, replies: flows.Reply | flows.Reply[]) {
+  for (const r of Array.isArray(replies) ? replies : [replies]) {
+    await ctx.reply(r.html, { parse_mode: "HTML", reply_markup: tgKeyboard(r.kb), link_preview_options: { is_disabled: true } });
+    // нижняя кнопка «Записаться» в чате ведёт к последнему открытому бизнесу
+    if (r.menuSlug) {
+      await ctx.api
+        .setChatMenuButton({ chat_id: ctx.chat!.id, menu_button: { type: "web_app", text: "Записаться", web_app: { url: webAppUrl({ b: r.menuSlug }) } } })
+        .catch(() => {});
+    }
+  }
 }
 
 function register(b: Bot) {
@@ -90,126 +61,22 @@ function register(b: Bot) {
     await next();
   });
 
-  b.command("start", async (ctx) => {
-    const payload = (ctx.match ?? "").trim();
-    const uid = ctx.from!.id;
-
-    if (payload.startsWith("inv_")) {
-      try {
-        const { business, role } = await store.claimInvite(db(), payload.slice(4), uid);
-        await store.setLastBusiness(db(), uid, business.id);
-        const kb = new InlineKeyboard().webApp("Открыть панель управления", webAppUrl({ b: business.slug, view: "admin" }));
-        await ctx.reply(
-          [
-            `<b>Готово.</b> Вы ${role === "owner" ? "владелец" : "администратор"} «${esc(business.name)}».`,
-            "",
-            "В панели можно поменять услуги, цены, график и тексты.",
-            "",
-            "<b>Ссылка для клиентов</b>",
-            "<i>Поставьте её в шапку канала, Instagram и в ответы клиентам:</i>",
-            `<code>${esc(clientLink(business.slug))}</code>`,
-            "",
-            "<b>Ваша ссылка на панель управления</b>",
-            "<i>Сохраните её. У других людей она откроет обычную запись.</i>",
-            `<code>${esc(adminLink(business.slug))}</code>`,
-          ].join("\n"),
-          { parse_mode: "HTML", reply_markup: kb, link_preview_options: { is_disabled: true } },
-        );
-        if (role === "owner") {
-          const { notifySuperadmins } = await import("./notify.js");
-          await notifySuperadmins(
-            `<b>Приглашение принято:</b> «${esc(business.name)}» → <a href="tg://user?id=${uid}">${esc(ctx.from!.first_name)}</a>`,
-          );
-        }
-      } catch (e) {
-        await ctx.reply(e instanceof UserError ? e.message : "Не удалось принять приглашение");
-      }
-      return;
-    }
-
-    // постоянная ссылка на панель: открывает управление только тем, у кого есть роль
-    if (payload.startsWith("adm_")) {
-      const business = await store.getBusiness(db(), payload.slice(4));
-      if (!business) return showPlatform(ctx);
-      const role = await store.roleFor(db(), uid, business.id, config.superadmins);
-      await store.setLastBusiness(db(), uid, business.id);
-      if (!role) {
-        await store.touchClient(db(), business.id, ctx.from!);
-        return showBusiness(ctx, business);
-      }
-      const kb = new InlineKeyboard()
-        .webApp("Открыть панель управления", webAppUrl({ b: business.slug, view: "admin" }))
-        .row()
-        .webApp("Как видят клиенты", webAppUrl({ b: business.slug }));
-      return ctx.reply(`<b>Панель управления</b> · ${esc(business.name)}`, { parse_mode: "HTML", reply_markup: kb });
-    }
-
-    if (payload) {
-      const business = await store.getBusiness(db(), payload);
-      if (business && business.status === "active") {
-        await store.setLastBusiness(db(), uid, business.id);
-        const role = await store.roleFor(db(), uid, business.id, config.superadmins);
-        if (!role) await store.touchClient(db(), business.id, ctx.from!);
-        return showBusiness(ctx, business);
-      }
-      if (business) return ctx.reply("Запись в этот бизнес временно недоступна.");
-    }
-
-    if (!payload && !isSuper(uid)) {
-      const mine = await store.businessesOfClient(db(), uid, 2);
-      if (mine.length > 1) return showMasters(ctx);
-    }
-    const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
-    if (u?.last_business_id && !payload) {
-      const business = await store.getBusiness(db(), Number(u.last_business_id));
-      if (business?.status === "active") return showBusiness(ctx, business);
-    }
-    return showPlatform(ctx);
-  });
-
-  b.command("admin", (ctx) => showPlatform(ctx));
-  b.command("masters", (ctx) => showMasters(ctx));
+  b.command("start", async (ctx) => send(ctx, await flows.onStart(ctx.from!, String(ctx.match ?? ""), "tg")));
+  b.command("admin", async (ctx) => send(ctx, await flows.platformMenu(ctx.from!.id)));
+  b.command("masters", async (ctx) => send(ctx, await flows.mastersList(ctx.from!.id)));
   b.callbackQuery("masters", async (ctx) => {
     await ctx.answerCallbackQuery();
-    await showMasters(ctx);
+    await send(ctx, await flows.mastersList(ctx.from.id));
   });
-
-  b.command("help", (ctx) =>
-    ctx.reply(
-      "Запись, отмена и перенос — в приложении (кнопка «Записаться» внизу).\n/start — главное меню\n/admin — панель для владельцев бизнеса",
-    ),
-  );
+  b.command("help", (ctx) => send(ctx, flows.helpReply("tg")));
 
   // Номер, которым клиент поделился из формы записи («Взять номер из Telegram»): сохраняем молча
   b.on("message:contact", async (ctx) => {
     const c = ctx.message.contact;
-    if (c.user_id !== ctx.from.id) return;
-    const pc = checkPhone(c.phone_number.startsWith("+") ? c.phone_number : `+${c.phone_number}`);
-    if (!pc.ok) return;
-    const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [ctx.from.id]);
-    if (u?.last_business_id) {
-      await db().query(`update clients set phone = $3 where business_id = $1 and tg_id = $2`, [u.last_business_id, ctx.from.id, pc.phone]);
-    }
+    if (c.user_id === ctx.from.id) await flows.onContact(ctx.from.id, c.phone_number);
   });
 
-  // Любое другое сообщение: подсказываем контакты бизнеса и кнопку записи
-  b.on("message", async (ctx) => {
-    const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [ctx.from.id]);
-    const business = u?.last_business_id ? await store.getBusiness(db(), Number(u.last_business_id)) : null;
-    if (!business) return showPlatform(ctx);
-    const s = business.settings;
-    const contacts = [s.contactPhone && `<i>Телефон:</i> <code>${esc(s.contactPhone)}</code>`, ...s.links.map((l) => `<a href="${esc(l.url)}">${esc(l.title)}</a>`)]
-      .filter(Boolean)
-      .join("\n");
-    await ctx.reply(
-      `Я бот онлайн-записи «${esc(business.name)}» и не читаю переписку.${contacts ? `\n\n<b>Связаться напрямую</b>\n${contacts}` : ""}`,
-      {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().webApp("Записаться", webAppUrl({ b: business.slug })),
-        link_preview_options: { is_disabled: true },
-      },
-    );
-  });
+  b.on("message", async (ctx) => send(ctx, await flows.onOtherMessage(ctx.from.id)));
 
   b.on("my_chat_member", async (ctx) => {
     if (ctx.myChatMember.new_chat_member.status === "kicked") {

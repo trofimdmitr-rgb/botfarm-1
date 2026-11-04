@@ -4,16 +4,32 @@ import { createContext, useContext, useEffect, useState } from "react";
 declare global {
   interface Window {
     Telegram?: { WebApp: any };
+    WebApp?: any; // мост MAX (https://st.max.ru/js/max-web-app.js)
   }
 }
 
 export const WA: any = window.Telegram?.WebApp ?? null;
 export const inTelegram = Boolean(WA?.initData);
+/** Мини-апп открыт в MAX: свой мост window.WebApp, своя подпись initData, нет темы и нижней кнопки. */
+export const MAXA: any = !inTelegram && window.WebApp?.initData ? window.WebApp : null;
+export const inMax = Boolean(MAXA);
+
+/** Параметры запуска: из адреса (?b=&view=), а в MAX — из ?startapp=slug__view. */
+function launchParams(): URLSearchParams {
+  const q = new URLSearchParams(location.search);
+  const sp: string = MAXA?.initDataUnsafe?.start_param ?? "";
+  if (sp && !q.get("b") && !q.get("view")) {
+    const [b, view] = sp.split("__");
+    if (b) q.set("b", b);
+    if (view) q.set("view", view);
+  }
+  return q;
+}
 
 let devInitData = "";
 
 export async function ensureDevAuth() {
-  if (inTelegram) return;
+  if (inTelegram || inMax) return;
   const q = new URLSearchParams(location.search);
   const user = q.get("devUser") ?? localStorageGet("devUser") ?? "1";
   const res = await fetch(`/api/dev-init?user=${encodeURIComponent(user)}&start=${encodeURIComponent(q.get("start") ?? "")}`);
@@ -33,7 +49,10 @@ export class ApiError extends Error {}
 export async function api<T = any>(method: string, params: Record<string, unknown> = {}): Promise<T> {
   const res = await fetch("/api/rpc", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-init-data": WA?.initData || devInitData },
+    headers: {
+      "content-type": "application/json",
+      ...(inMax ? { "x-max-init-data": MAXA.initData } : { "x-init-data": WA?.initData || devInitData }),
+    },
     body: JSON.stringify({ method, params }),
   });
   let data: any = null;
@@ -47,29 +66,47 @@ export async function api<T = any>(method: string, params: Record<string, unknow
 }
 
 export const startParam: string | undefined = WA?.initDataUnsafe?.start_param || undefined;
-export const urlParams = new URLSearchParams(location.search);
+export const urlParams = launchParams();
 
 export function haptic(kind: "success" | "error" | "warning" | "light" = "light") {
   try {
-    if (kind === "light") WA?.HapticFeedback?.impactOccurred("light");
-    else WA?.HapticFeedback?.notificationOccurred(kind);
+    const h = inMax ? MAXA.HapticFeedback : WA?.HapticFeedback;
+    if (kind === "light") h?.impactOccurred("light");
+    else h?.notificationOccurred(kind);
   } catch {}
 }
 
 export function alertMsg(text: string): Promise<void> {
   return new Promise((resolve) => {
-    if (WA?.showAlert) WA.showAlert(text, () => resolve());
-    else {
-      window.alert(text);
-      resolve();
-    }
+    if (inTelegram && WA?.showAlert) WA.showAlert(text, () => resolve());
+    else void inAppDialog(text, false).then(() => resolve());
   });
 }
 
 export function confirmMsg(text: string): Promise<boolean> {
   return new Promise((resolve) => {
-    if (WA?.showConfirm) WA.showConfirm(text, (ok: boolean) => resolve(ok));
-    else resolve(window.confirm(text));
+    if (inTelegram && WA?.showConfirm) WA.showConfirm(text, (ok: boolean) => resolve(ok));
+    else void inAppDialog(text, true).then(resolve);
+  });
+}
+
+/** Своё окно вместо alert/confirm — вне Telegram (MAX, браузер) системные окна выглядят чужеродно или не работают. */
+function inAppDialog(text: string, withCancel: boolean): Promise<boolean> {
+  return new Promise((resolve) => {
+    const wrap = document.createElement("div");
+    wrap.className = "dlg-wrap";
+    wrap.innerHTML = `<div class="dlg" role="dialog"><div class="dlg-text"></div><div class="dlg-actions">${
+      withCancel ? '<button class="btn btn-secondary" data-v="0">Отмена</button>' : ""
+    }<button class="btn btn-primary" data-v="1">${withCancel ? "Да" : "Понятно"}</button></div></div>`;
+    (wrap.querySelector(".dlg-text") as HTMLElement).textContent = text;
+    wrap.addEventListener("click", (e) => {
+      const v = (e.target as HTMLElement).closest("button")?.getAttribute("data-v");
+      if (v == null && e.target !== wrap) return;
+      wrap.remove();
+      resolve(v === "1");
+    });
+    document.body.appendChild(wrap);
+    (wrap.querySelector('[data-v="1"]') as HTMLElement).focus();
   });
 }
 
@@ -91,21 +128,30 @@ export async function copy(text: string): Promise<boolean> {
 }
 
 export function shareLink(url: string, text: string) {
+  if (inMax) {
+    try {
+      return MAXA.shareMaxContent({ text, link: url });
+    } catch {}
+  }
   const share = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
   if (WA?.openTelegramLink) WA.openTelegramLink(share);
   else window.open(share, "_blank");
 }
 
 export function openLink(url: string) {
+  if (inMax) {
+    if (url.startsWith("https://max.ru/") && MAXA.openMaxLink) return MAXA.openMaxLink(url);
+    if (MAXA.openLink) return MAXA.openLink(url);
+  }
   if (url.startsWith("https://t.me/") && WA?.openTelegramLink) WA.openTelegramLink(url);
-  else if (WA?.openLink) WA.openLink(url);
+  else if (inTelegram && WA?.openLink) WA.openLink(url);
   else window.open(url, "_blank");
 }
 
 /** Попросить разрешение писать в личку — иначе клиент, открывший приложение по прямой ссылке, не получит напоминания. */
 export function ensureWriteAccess(): Promise<void> {
   return new Promise((resolve) => {
-    if (!WA?.requestWriteAccess || WA.initDataUnsafe?.user?.allows_write_to_pm) return resolve();
+    if (!inTelegram || !WA?.requestWriteAccess || WA.initDataUnsafe?.user?.allows_write_to_pm) return resolve();
     try {
       WA.requestWriteAccess(() => resolve());
     } catch {

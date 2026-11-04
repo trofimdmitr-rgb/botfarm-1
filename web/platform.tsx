@@ -75,6 +75,13 @@ export function SuperPanel(p: { boot: Boot; onBack: (() => void) | null; onAdmin
             onClick={async () => (await copy(created.links.admin)) && showToast("Скопировано")}
           />
           <Cell title="Приглашение владельца" subtitle={created.ownerInvite} onClick={async () => (await copy(created.ownerInvite)) && showToast("Скопировано")} />
+          {created.ownerInviteMax && (
+            <Cell
+              title="Приглашение владельца в MAX"
+              subtitle={created.ownerInviteMax}
+              onClick={async () => (await copy(created.ownerInviteMax)) && showToast("Скопировано")}
+            />
+          )}
           <Cell before={<Icon name="sliders" size={20} />} title="Настроить перед отправкой" onClick={() => p.onAdmin(created.business.id)} chevron />
         </Section>
         <Toast text={toast} />
