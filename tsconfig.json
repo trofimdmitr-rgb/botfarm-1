@@ -13,5 +13,5 @@
     "isolatedModules": true,
     "types": ["node"]
   },
-  "include": ["api", "server", "web", "tests", "dev"]
+  "include": ["api", "server", "web", "tests", "dev", "e2e", "playwright.config.ts"]
 }

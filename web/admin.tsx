@@ -108,7 +108,9 @@ export function AdminPanel(p: {
           </div>
         </div>
         <button className="btn btn-small btn-secondary" onClick={p.onPreview}>
-          <Icon name="eye" size={16} /> Как видят клиенты
+          <Icon name="eye" size={16} />
+          <span className="lbl-long">Как видят клиенты</span>
+          <span className="lbl-short">Превью</span>
         </button>
       </div>
       <Tabs<Tab>

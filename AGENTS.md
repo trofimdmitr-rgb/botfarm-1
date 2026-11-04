@@ -112,6 +112,7 @@ npm install
 npm test                    # 43 теста, все должны быть зелёными
 npm run typecheck
 npm run build && npm run local   # http://localhost:8787/?devUser=1
+npm run e2e                 # автотесты в имитации Telegram (сам соберёт и поднимет сервер); скриншоты — e2e-screens/
 #   devUser=1 — суперадмин, 2 — владелец «Ногти Анны», 3+ — клиенты. Сообщения бота печатаются в консоль.
 ```
 
@@ -220,7 +221,7 @@ npm run build && npm run local   # http://localhost:8787/?devUser=1
 
 ### E. Качество в Telegram и работа без бота (запрос Антона, 03.11)
 
-- [ ] **E1. Автотесты «как ощущается в Telegram».** Playwright + подставной `window.Telegram.WebApp`
+- [x] **E1. Автотесты «как ощущается в Telegram».** (сделано: `e2e/` — имитация Telegram `tg.ts`, проверки `checks.ts` включая контраст, сценарии `telegram.spec.ts`, самопроверка `selfcheck.spec.ts`; `npm run e2e`; GitHub Actions `.github/workflows/tests.yml`, скриншоты в артефактах) Playwright + подставной `window.Telegram.WebApp`
   (themeParams светлой/тёмной темы, `platform` ios/android/tdesktop, viewportHeight, safe area, MainButton/BackButton).
   Размеры: 360×640, 390×844, 412×915, окно Telegram Desktop. Сценарии: главная → работы → запись до конца →
   мои записи → отмена; панель мастера по всем вкладкам. Проверки: нет ошибок в консоли, нет горизонтальной

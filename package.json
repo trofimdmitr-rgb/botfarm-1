@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "local": "tsx dev/local-server.ts",
-    "build:api": "node scripts/gen-schema.mjs && esbuild server/entry.ts --bundle --platform=node --target=node22 --format=esm --packages=external --outfile=api/index.mjs"
+    "build:api": "node scripts/gen-schema.mjs && esbuild server/entry.ts --bundle --platform=node --target=node22 --format=esm --packages=external --outfile=api/index.mjs",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",
+    "@playwright/test": "^1.56.0",
     "@types/luxon": "^3.7.6",
     "@types/node": "^26.6.5",
     "@types/qrcode": "^1.5.6",

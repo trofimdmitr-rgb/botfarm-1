@@ -182,7 +182,7 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .day-wd { font-size: 12px; color: var(--hint); text-transform: capitalize; }
 .day-n { font-weight: 600; font-size: 14px; white-space: nowrap; }
 .day-on { background: var(--accent); color: var(--accent-text, #fff); }
-.day-on .day-wd { color: color-mix(in srgb, var(--accent-text, #fff) 80%, transparent); }
+.day-on .day-wd { color: var(--accent-text, #fff); }
 .day-today:not(.day-on) { box-shadow: 0 0 0 1.5px var(--accent) inset; }
 .days-compact .day { min-width: 50px; }
 .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; padding: 12px; }
@@ -475,3 +475,30 @@ html.tabbar-hidden .tabbar { display: none; }
 .other-ava { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; flex: none; background: var(--sep); }
 .other-ava-letter { display: grid; place-items: center; font-weight: 700; font-size: 17px; color: var(--text); }
 .home-others .price-row .icon { color: var(--hint); }
+
+/* --- исправления по автотестам в Telegram --- */
+/* шапка панели мастера на узких телефонах: имя в одну строку, кнопка короче */
+.admin-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-head .btn { flex: none; white-space: nowrap; }
+.lbl-short { display: none; }
+@media (max-width: 400px) {
+  .lbl-long { display: none; }
+  .lbl-short { display: inline; }
+}
+/* подсказки в полях и поиске видны на цвете баннера */
+html.toned input::placeholder, html.toned textarea::placeholder { color: var(--hint); opacity: 1; }
+/* метки статусов читаются на любом фоне */
+html.toned .badge-red { background: rgba(229, 72, 77, 0.92); color: #fff; }
+html.toned .badge-green { background: rgba(48, 164, 108, 0.92); color: #fff; }
+html.toned .badge-blue { background: var(--btn); color: var(--btn-text); }
+html.toned .badge-gray { background: var(--tile); color: var(--text); }
+/* галочки и переключатели в цвет интерфейса, а не системные синие */
+input[type="checkbox"], input[type="radio"] { accent-color: var(--switch-on, var(--btn)); width: 18px; height: 18px; }
+/* шаги записи: невыбранные заметнее на цвете баннера */
+html.toned .step { background: var(--tile); }
+/* мелкие подписи (вкладки, дни недели, «muted») — чуть темнее стандартной подсказки Telegram, чтобы читались */
+:root { --hint-strong: color-mix(in srgb, var(--hint) 72%, var(--text)); }
+.muted, .day-wd, .tabbar-item, .home-foot, .badge-gray { color: var(--hint-strong); }
+.tabbar-on { color: var(--accent); }
+html.toned .tabbar-on { color: var(--text); }
+.day-on .day-wd { color: var(--accent-text, #fff); }

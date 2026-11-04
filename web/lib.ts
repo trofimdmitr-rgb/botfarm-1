@@ -257,7 +257,7 @@ export function makeTheme(tone: string): Theme {
     "--card": light ? `color-mix(in srgb, ${tone} 45%, #ffffff)` : `color-mix(in srgb, ${tone} 85%, #ffffff)`,
     "--text": ink,
     "--sub": a(light ? 0.62 : 0.78),
-    "--hint": a(light ? 0.46 : 0.58),
+    "--hint": a(light ? 0.56 : 0.68),
     "--head": a(light ? 0.6 : 0.75),
     "--link": ink,
     "--btn": btn,
