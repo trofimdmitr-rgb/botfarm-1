@@ -57,6 +57,31 @@ describe("бот", () => {
     expect(replies()[0].payload.text).toContain("Борода");
   });
 
+  it("клиент двух мастеров: /start без ссылки показывает список, в карточке — «Другие мастера»", async () => {
+    const a = await createBusinessFromTemplate(db(), { templateId: "barber", name: "Борода" });
+    const n = await createBusinessFromTemplate(db(), { templateId: "beauty", name: "Ногти Ани" });
+    await start(310, a.slug);
+    calls.length = 0;
+    await start(310, n.slug);
+    const card = replies()[0].payload;
+    expect(card.text).toContain("Ногти Ани");
+    expect(JSON.stringify(card.reply_markup)).toContain("Другие мастера");
+
+    calls.length = 0;
+    await start(310);
+    const list = replies()[0].payload;
+    expect(list.text).toContain("Ваши мастера");
+    const kb = JSON.stringify(list.reply_markup);
+    expect(kb).toContain(`?b=${a.slug}`);
+    expect(kb).toContain(`?b=${n.slug}`);
+  });
+
+  it("суперадмин видит в карточке бизнеса вход в панель платформы", async () => {
+    const b = await createBusinessFromTemplate(db(), { templateId: "barber", name: "Борода" });
+    await start(1, b.slug);
+    expect(JSON.stringify(replies()[0].payload.reply_markup)).toContain("view=super");
+  });
+
   it("/start без истории — нет кнопки создания бизнеса", async () => {
     await start(400);
     const msg = replies()[0].payload;

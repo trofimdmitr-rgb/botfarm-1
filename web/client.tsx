@@ -33,6 +33,8 @@ export function BusinessHome(p: {
   onMy: () => void;
   onPortfolio: (open?: number) => void;
   onAdmin?: () => void;
+  onSuper?: () => void;
+  onSwitch?: (slug: string) => void;
 }) {
   const b = p.boot.business!;
   const s = b.settings;
@@ -166,9 +168,37 @@ export function BusinessHome(p: {
         </section>
       )}
 
+      {!!p.boot.others?.length && p.onSwitch && (
+        <section className="home-price home-others">
+          <div className="home-works-head">
+            <span>Другие ваши мастера</span>
+          </div>
+          <div className="price-list">
+            {p.boot.others.map((o) => (
+              <button key={o.id} className="price-row" onClick={() => p.onSwitch!(o.slug)}>
+                {o.bannerFileId ? (
+                  <img className="other-ava" src={bannerUrl(o.id, o.bannerFileId) || undefined} alt="" />
+                ) : (
+                  <span className="other-ava other-ava-letter">{o.name.trim().charAt(0).toUpperCase()}</span>
+                )}
+                <span className="price-main">
+                  <span className="price-title">{o.name}</span>
+                </span>
+                <Icon name="arrow" size={16} />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {p.onAdmin && (
         <button className="admin-banner" onClick={p.onAdmin}>
           Вы управляете этим бизнесом — открыть панель
+        </button>
+      )}
+      {p.onSuper && (
+        <button className="admin-banner" onClick={p.onSuper}>
+          Панель платформы — создать бизнес или открыть любой
         </button>
       )}
 

@@ -148,6 +148,12 @@ function App() {
           onMy={() => push({ name: "my" })}
           onPortfolio={(open) => push({ name: "portfolio", open })}
           onAdmin={boot.role ? () => push({ name: "admin", businessId: biz.id }) : undefined}
+          onSuper={boot.me.isSuper ? () => push({ name: "super" }) : undefined}
+          onSwitch={async (slug) => {
+            window.scrollTo(0, 0);
+            const b = await load({ slug });
+            if (b?.business) setStack([{ name: "home" }]);
+          }}
         />
       );
   }

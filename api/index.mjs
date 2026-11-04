@@ -894,6 +894,14 @@ async function roleFor(db2, tgId, businessId, superadmins) {
   const [r] = await db2.query(`select role from business_admins where business_id = $1 and tg_id = $2`, [businessId, tgId]);
   return r?.role ?? null;
 }
+async function businessesOfClient(db2, tgId, limit = 10) {
+  const rows = await db2.query(
+    `select b.* from clients c join businesses b on b.id = c.business_id
+     where c.tg_id = $1 and b.status = 'active' order by c.last_seen desc limit $2`,
+    [tgId, limit]
+  );
+  return rows.map(rowToBusiness);
+}
 async function businessesOfAdmin(db2, tgId) {
   const rows = await db2.query(
     `select b.*, a.role from business_admins a join businesses b on b.id = a.business_id
@@ -1174,7 +1182,11 @@ function getBot() {
 var isSuper = (id) => config.superadmins.includes(id);
 async function showBusiness(ctx, b) {
   const s = b.settings;
+  const uid = ctx.from.id;
   const kb = new InlineKeyboard().webApp("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043E\u043D\u043B\u0430\u0439\u043D", webAppUrl({ b: b.slug })).row().webApp("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: b.slug, view: "my" }));
+  const others = (await businessesOfClient(db(), uid)).filter((x) => x.id !== b.id);
+  if (others.length) kb.row().text("\u0414\u0440\u0443\u0433\u0438\u0435 \u043C\u0430\u0441\u0442\u0435\u0440\u0430", "masters");
+  if (isSuper(uid)) kb.row().webApp("\u041F\u0430\u043D\u0435\u043B\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u044B", webAppUrl({ view: "super" }));
   const lines = [`<b>${esc(b.name)}</b>`, "", esc(s.welcome)];
   const info = [
     s.address && `<i>\u0410\u0434\u0440\u0435\u0441:</i> ${esc(s.address)}`,
@@ -1197,6 +1209,19 @@ async function showPlatform(ctx) {
     "\u0427\u0442\u043E\u0431\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F, \u043E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443 \u0432\u0430\u0448\u0435\u0433\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u2014 \u0438 \u0437\u0434\u0435\u0441\u044C \u043F\u043E\u044F\u0432\u0438\u0442\u0441\u044F \u0437\u0430\u043F\u0438\u0441\u044C \u043A \u043D\u0435\u043C\u0443."
   ].join("\n");
   await ctx.reply(text, { parse_mode: "HTML", reply_markup: adminOf.length || isSuper(uid) ? kb : void 0 });
+}
+async function showMasters(ctx) {
+  const list = await businessesOfClient(db(), ctx.from.id);
+  if (!list.length) {
+    await ctx.reply("\u0417\u0434\u0435\u0441\u044C \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u043C\u0430\u0441\u0442\u0435\u0440\u0430, \u043A \u043A\u043E\u0442\u043E\u0440\u044B\u043C \u0432\u044B \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u043B\u0438\u0441\u044C. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u0441\u0441\u044B\u043B\u043A\u0443 \u043C\u0430\u0441\u0442\u0435\u0440\u0430, \u0447\u0442\u043E\u0431\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F.");
+    return;
+  }
+  const kb = new InlineKeyboard();
+  for (const b of list) kb.webApp(b.name, webAppUrl({ b: b.slug })).row();
+  await ctx.reply("<b>\u0412\u0430\u0448\u0438 \u043C\u0430\u0441\u0442\u0435\u0440\u0430</b>\n<i>\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435, \u043A \u043A\u043E\u043C\u0443 \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u0438\u043B\u0438 \u043F\u043E\u0441\u043C\u043E\u0442\u0440\u0435\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u0438.</i>", {
+    parse_mode: "HTML",
+    reply_markup: kb
+  });
 }
 function register(b) {
   b.use(async (ctx, next) => {
@@ -1260,6 +1285,10 @@ function register(b) {
       }
       if (business) return ctx.reply("\u0417\u0430\u043F\u0438\u0441\u044C \u0432 \u044D\u0442\u043E\u0442 \u0431\u0438\u0437\u043D\u0435\u0441 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u043E \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430.");
     }
+    if (!payload && !isSuper(uid)) {
+      const mine = await businessesOfClient(db(), uid, 2);
+      if (mine.length > 1) return showMasters(ctx);
+    }
     const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
     if (u?.last_business_id && !payload) {
       const business = await getBusiness(db(), Number(u.last_business_id));
@@ -1268,6 +1297,11 @@ function register(b) {
     return showPlatform(ctx);
   });
   b.command("admin", (ctx) => showPlatform(ctx));
+  b.command("masters", (ctx) => showMasters(ctx));
+  b.callbackQuery("masters", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showMasters(ctx);
+  });
   b.command(
     "help",
     (ctx) => ctx.reply(
@@ -1420,12 +1454,14 @@ async function boot(ctx, p) {
          and status = 'confirmed' and starts_at > now() order by starts_at limit 1`,
     [business.id, u.id]
   ) : [];
+  const others = (await businessesOfClient(db(), u.id)).filter((b) => b.id !== business?.id).map((b) => ({ id: b.id, slug: b.slug, name: b.name, bannerFileId: b.settings.bannerFileId || "" }));
   return {
     me: { id: u.id, name: u.first_name, isSuper: isSuper2 },
     business: business ? { ...publicBusiness(business), ...await catalog(business) } : null,
     role,
     client: client ?? null,
     next: next ?? null,
+    others,
     adminOf: adminOf.map((b) => ({ id: b.id, slug: b.slug, name: b.name, role: b.role, emoji: b.settings.emoji })),
     templates: tplList()
   };
@@ -1907,15 +1943,17 @@ async function photo(url) {
     }
   });
 }
-var webhookUrl = () => `${config.publicUrl}/api/bot?v=${config.webhookSecret.slice(0, 8)}`;
+var SETUP_V = "2";
+var webhookUrl = () => `${config.publicUrl}/api/bot?v=${config.webhookSecret.slice(0, 8)}${SETUP_V}`;
 async function setupBot() {
   const api2 = rawApi();
   await api2.setWebhook(webhookUrl(), {
     secret_token: config.webhookSecret || void 0,
-    allowed_updates: ["message", "my_chat_member"]
+    allowed_updates: ["message", "callback_query", "my_chat_member"]
   });
   await api2.setMyCommands([
     { command: "start", description: "\u0413\u043B\u0430\u0432\u043D\u043E\u0435 \u043C\u0435\u043D\u044E" },
+    { command: "masters", description: "\u041C\u043E\u0438 \u043C\u0430\u0441\u0442\u0435\u0440\u0430" },
     { command: "admin", description: "\u041F\u0430\u043D\u0435\u043B\u044C \u0434\u043B\u044F \u0432\u043B\u0430\u0434\u0435\u043B\u044C\u0446\u0435\u0432 \u0431\u0438\u0437\u043D\u0435\u0441\u0430" },
     { command: "help", description: "\u041F\u043E\u043C\u043E\u0449\u044C" }
   ]);

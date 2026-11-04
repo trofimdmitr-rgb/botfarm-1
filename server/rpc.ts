@@ -99,12 +99,18 @@ async function boot(ctx: Ctx, p: P) {
       )
     : [];
 
+  // другие мастера этого человека — для переключения между бизнесами в одном боте
+  const others = (await store.businessesOfClient(db(), u.id))
+    .filter((b) => b.id !== business?.id)
+    .map((b) => ({ id: b.id, slug: b.slug, name: b.name, bannerFileId: b.settings.bannerFileId || "" }));
+
   return {
     me: { id: u.id, name: u.first_name, isSuper },
     business: business ? { ...publicBusiness(business), ...(await catalog(business)) } : null,
     role,
     client: client ?? null,
     next: next ?? null,
+    others,
     adminOf: adminOf.map((b) => ({ id: b.id, slug: b.slug, name: b.name, role: b.role, emoji: b.settings.emoji })),
     templates: tplList(),
   };

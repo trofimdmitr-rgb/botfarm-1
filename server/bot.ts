@@ -32,10 +32,15 @@ const isSuper = (id: number) => config.superadmins.includes(id);
 
 async function showBusiness(ctx: Context, b: store.Business) {
   const s = b.settings;
+  const uid = ctx.from!.id;
   const kb = new InlineKeyboard()
     .webApp("Записаться онлайн", webAppUrl({ b: b.slug }))
     .row()
     .webApp("Мои записи", webAppUrl({ b: b.slug, view: "my" }));
+  // у кого несколько мастеров — кнопка ко всему списку; суперадмину — вход в панель платформы
+  const others = (await store.businessesOfClient(db(), uid)).filter((x) => x.id !== b.id);
+  if (others.length) kb.row().text("Другие мастера", "masters");
+  if (isSuper(uid)) kb.row().webApp("Панель платформы", webAppUrl({ view: "super" }));
   const lines = [`<b>${esc(b.name)}</b>`, "", esc(s.welcome)];
   const info = [
     s.address && `<i>Адрес:</i> ${esc(s.address)}`,
@@ -62,6 +67,21 @@ async function showPlatform(ctx: Context) {
         "Чтобы записаться, откройте ссылку вашего мастера — и здесь появится запись к нему.",
       ].join("\n");
   await ctx.reply(text, { parse_mode: "HTML", reply_markup: adminOf.length || isSuper(uid) ? kb : undefined });
+}
+
+/** Все бизнесы, куда человек записывался или заходил, — переключение одним нажатием. */
+async function showMasters(ctx: Context) {
+  const list = await store.businessesOfClient(db(), ctx.from!.id);
+  if (!list.length) {
+    await ctx.reply("Здесь появятся мастера, к которым вы записывались. Откройте ссылку мастера, чтобы записаться.");
+    return;
+  }
+  const kb = new InlineKeyboard();
+  for (const b of list) kb.webApp(b.name, webAppUrl({ b: b.slug })).row();
+  await ctx.reply("<b>Ваши мастера</b>\n<i>Выберите, к кому записаться или посмотреть записи.</i>", {
+    parse_mode: "HTML",
+    reply_markup: kb,
+  });
 }
 
 function register(b: Bot) {
@@ -135,6 +155,10 @@ function register(b: Bot) {
       if (business) return ctx.reply("Запись в этот бизнес временно недоступна.");
     }
 
+    if (!payload && !isSuper(uid)) {
+      const mine = await store.businessesOfClient(db(), uid, 2);
+      if (mine.length > 1) return showMasters(ctx);
+    }
     const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
     if (u?.last_business_id && !payload) {
       const business = await store.getBusiness(db(), Number(u.last_business_id));
@@ -144,6 +168,11 @@ function register(b: Bot) {
   });
 
   b.command("admin", (ctx) => showPlatform(ctx));
+  b.command("masters", (ctx) => showMasters(ctx));
+  b.callbackQuery("masters", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showMasters(ctx);
+  });
 
   b.command("help", (ctx) =>
     ctx.reply(

@@ -470,3 +470,8 @@ html.tabbar-hidden .tabbar { display: none; }
   font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif; font-style: italic; font-weight: 500;
   font-size: 21px; letter-spacing: 0.01em; color: var(--sub);
 }
+
+/* «Другие ваши мастера» — переключение между бизнесами */
+.other-ava { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; flex: none; background: var(--sep); }
+.other-ava-letter { display: grid; place-items: center; font-weight: 700; font-size: 17px; color: var(--text); }
+.home-others .price-row .icon { color: var(--hint); }

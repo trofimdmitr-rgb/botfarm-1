@@ -165,6 +165,16 @@ export async function roleFor(db: Db, tgId: number, businessId: number, superadm
   return (r?.role as Role) ?? null;
 }
 
+/** Бизнесы, в которые человек заходил как клиент (последние сверху). */
+export async function businessesOfClient(db: Db, tgId: number, limit = 10): Promise<Business[]> {
+  const rows = await db.query(
+    `select b.* from clients c join businesses b on b.id = c.business_id
+     where c.tg_id = $1 and b.status = 'active' order by c.last_seen desc limit $2`,
+    [tgId, limit],
+  );
+  return rows.map(rowToBusiness);
+}
+
 export async function businessesOfAdmin(db: Db, tgId: number): Promise<(Business & { role: string })[]> {
   const rows = await db.query(
     `select b.*, a.role from business_admins a join businesses b on b.id = a.business_id

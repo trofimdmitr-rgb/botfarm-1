@@ -64,6 +64,7 @@ export interface Boot {
   role: "super" | "owner" | "admin" | null;
   client: { name: string; phone: string } | null;
   next?: { starts_at: string; service_title: string } | null;
+  others?: { id: number; slug: string; name: string; bannerFileId: string }[];
   blocked?: boolean;
   adminOf: { id: number; slug: string; name: string; role: string; emoji: string }[];
   templates: { id: string; title: string; emoji: string; pitch: string }[];

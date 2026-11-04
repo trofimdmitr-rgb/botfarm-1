@@ -83,17 +83,20 @@ async function photo(url: URL): Promise<Response> {
 }
 
 /** В адресе вебхука — метка секрета: после перевыпуска токена адрес не совпадёт, и бот перенастроится сам. */
-const webhookUrl = () => `${config.publicUrl}/api/bot?v=${config.webhookSecret.slice(0, 8)}`;
+// SETUP_V — поднять, когда меняются команды/настройки бота: адрес вебхука изменится, и бот перенастроится сам
+const SETUP_V = "2";
+const webhookUrl = () => `${config.publicUrl}/api/bot?v=${config.webhookSecret.slice(0, 8)}${SETUP_V}`;
 
 /** Настройка бота: вебхук, команды, кнопка меню, описание. */
 async function setupBot() {
   const api = rawApi();
   await api.setWebhook(webhookUrl(), {
     secret_token: config.webhookSecret || undefined,
-    allowed_updates: ["message", "my_chat_member"],
+    allowed_updates: ["message", "callback_query", "my_chat_member"],
   });
   await api.setMyCommands([
     { command: "start", description: "Главное меню" },
+    { command: "masters", description: "Мои мастера" },
     { command: "admin", description: "Панель для владельцев бизнеса" },
     { command: "help", description: "Помощь" },
   ]);
