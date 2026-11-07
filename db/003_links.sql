@@ -17,3 +17,11 @@ create table if not exists link_requests (
   answered_at timestamptz
 );
 create index if not exists link_requests_pair on link_requests(from_id, to_id);
+
+-- номера из уже сделанных записей: подставляем аккаунтам, у которых номер ещё не запомнен
+update users u set phone = c.phone
+from (
+  select distinct on (tg_id) tg_id, phone from clients
+  where phone is not null and phone <> '' order by tg_id, last_seen desc
+) c
+where c.tg_id = u.tg_id and u.phone is null;
