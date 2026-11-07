@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { SCHEMA_SQL } from "./schema.gen.js";
+import { MIGRATIONS_SQL, SCHEMA_SQL } from "./schema.gen.js";
 
 export interface Db {
   query<T = any>(text: string, params?: unknown[]): Promise<T[]>;
@@ -62,7 +62,11 @@ const DEFAULT_SUPERADMINS: [number, string][] = [
  */
 async function ensureSchema(sql: postgres.Sql<any>) {
   const [row] = await sql.unsafe(`select to_regclass('businesses') is not null as ok`);
-  if (row?.ok) return;
+  if (row?.ok) {
+    // база уже есть — догоняем схему идемпотентными доработками
+    await sql.unsafe(MIGRATIONS_SQL);
+    return;
+  }
   try {
     await sql.unsafe(`create extension if not exists btree_gist with schema extensions`);
   } catch {

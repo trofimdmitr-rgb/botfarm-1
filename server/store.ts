@@ -165,11 +165,19 @@ export async function roleFor(db: Db, tgId: number, businessId: number, superadm
   return (r?.role as Role) ?? null;
 }
 
-/** Бизнесы, в которые человек заходил как клиент (последние сверху). */
+/**
+ * Все аккаунты того же человека (Telegram + MAX после связки, см. links.ts) — SQL-подзапрос для параметра $n.
+ * Без связки — только сам аккаунт.
+ */
+export const samePerson = (n: number) =>
+  `(select $${n}::bigint union select tg_id from users where person_id is not null and person_id = (select coalesce(person_id, tg_id) from users where tg_id = $${n}))`;
+
+/** Бизнесы, в которые человек заходил как клиент (последние сверху) — из любого своего мессенджера. */
 export async function businessesOfClient(db: Db, tgId: number, limit = 10): Promise<Business[]> {
   const rows = await db.query(
-    `select b.* from clients c join businesses b on b.id = c.business_id
-     where c.tg_id = $1 and b.status = 'active' order by c.last_seen desc limit $2`,
+    `select b.* from businesses b
+     join (select business_id, max(last_seen) as ls from clients where tg_id in ${samePerson(1)} group by business_id) c on c.business_id = b.id
+     where b.status = 'active' order by c.ls desc limit $2`,
     [tgId, limit],
   );
   return rows.map(rowToBusiness);
@@ -425,7 +433,8 @@ export async function cancelBooking(
   if (!b || b.business_id !== opts.business.id) throw new UserError("Запись не найдена");
   if (b.status !== "confirmed") throw new UserError("Запись уже неактивна");
   if (opts.by === "client") {
-    if (b.client_tg_id !== opts.tgId) throw new UserError("Это не ваша запись");
+    const [mine] = await db.query(`select 1 as ok where $1::bigint in ${samePerson(2)}`, [b.client_tg_id, opts.tgId]);
+    if (!mine) throw new UserError("Это не ваша запись");
     const hoursLeft = (new Date(b.starts_at).getTime() - (opts.now ?? new Date()).getTime()) / 3_600_000;
     if (hoursLeft < opts.business.settings.cancelHours) {
       throw new UserError(`Отменить онлайн можно не позже чем за ${opts.business.settings.cancelHours} ч. Напишите мастеру.`);
@@ -440,7 +449,7 @@ export async function cancelBooking(
 
 export const clientBookings = (db: Db, businessId: number, tgId: number) =>
   db.query<Booking>(
-    `select * from bookings where business_id = $1 and client_tg_id = $2
+    `select * from bookings where business_id = $1 and client_tg_id in ${samePerson(2)}
      and (starts_at > now() - interval '30 days') order by starts_at desc limit 30`,
     [businessId, tgId],
   );

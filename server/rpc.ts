@@ -3,6 +3,7 @@ import { type InitData } from "./auth.js";
 import { adminLink, clientLink, config, inviteLink, maxAdminLink, maxClientLink, maxInviteLink, webAppUrl } from "./config.js";
 import { db } from "./db.js";
 import { esc } from "./format.js";
+import * as accountLinks from "./links.js";
 import * as notify from "./notify.js";
 import { dayBoundsUtc, type WorkHours } from "./slots.js";
 import * as store from "./store.js";
@@ -101,7 +102,7 @@ async function boot(ctx: Ctx, p: P) {
   // ближайшая запись клиента — показываем на кнопке «Мои записи»
   const [next] = business
     ? await db().query(
-        `select starts_at, service_title from bookings where business_id = $1 and client_tg_id = $2
+        `select starts_at, service_title from bookings where business_id = $1 and client_tg_id in ${store.samePerson(2)}
          and status = 'confirmed' and starts_at > now() order by starts_at limit 1`,
         [business.id, u.id],
       )
@@ -156,6 +157,20 @@ async function book(ctx: Ctx, p: P) {
     now: ctx.now,
   });
   await notify.onBookingCreated(db(), b, booking);
+  // номер запоминаем у аккаунта; если тот же номер есть в другом мессенджере — связываем и оповещаем там
+  if (booking.client_phone) {
+    try {
+      await accountLinks.rememberPhone(db(), ctx.init.user.id, booking.client_phone);
+      const offers = await accountLinks.autoLink(db(), ctx.init.user.id, booking.client_phone, {
+        businessName: b.name,
+        startsAt: String(booking.starts_at),
+        timezone: b.timezone,
+      });
+      await notify.sendLinkOffers(offers);
+    } catch (e) {
+      console.error("link offers", e);
+    }
+  }
   return { id: booking.id, starts_at: booking.starts_at };
 }
 

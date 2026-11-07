@@ -36,6 +36,8 @@ export async function handleMaxUpdate(update: any): Promise<void> {
     await store.upsertUser(db(), user);
     await maxAnswerCallback(String(cb.callback_id ?? ""));
     if (cb.payload === "masters") await reply(user.id, await flows.mastersList(user.id));
+    const lnk = /^lnk:(\d+):([yn])$/.exec(String(cb.payload ?? ""));
+    if (lnk) await reply(user.id, await flows.onLinkAnswer(user.id, Number(lnk[1]), lnk[2] === "y"));
     return;
   }
 

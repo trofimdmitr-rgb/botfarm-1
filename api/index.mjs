@@ -123,7 +123,7 @@ var init_config = __esm({
 });
 
 // server/schema.gen.ts
-var SCHEMA_SQL;
+var SCHEMA_SQL, MIGRATIONS_SQL;
 var init_schema_gen = __esm({
   "server/schema.gen.ts"() {
     "use strict";
@@ -278,7 +278,26 @@ alter table bookings enable row level security;
 alter table clients enable row level security;
 alter table portfolio enable row level security;
 alter table platform_admins enable row level security;
+
+alter table users add column if not exists phone text;          -- \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u043D\u043E\u043C\u0435\u0440, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u0447\u0435\u043B\u043E\u0432\u0435\u043A \u0443\u043A\u0430\u0437\u0430\u043B
+alter table users add column if not exists person_id bigint;    -- \u043E\u0431\u0449\u0438\u0439 id \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430: \u0443 \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0445 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432 \u043E\u0434\u0438\u043D\u0430\u043A\u043E\u0432\u044B\u0439
+create index if not exists users_phone on users(phone);
+create index if not exists users_person on users(person_id);
+
+-- \xAB\u042D\u0442\u043E \u0432\u044B?\xBB: \u0441\u043F\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u043C \u0412\u041B\u0410\u0414\u0415\u041B\u042C\u0426\u0410 \u0443\u0436\u0435 \u0438\u0437\u0432\u0435\u0441\u0442\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430 (to_id), \u043A\u043E\u0433\u0434\u0430 \u0434\u0440\u0443\u0433\u043E\u0439 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 (from_id) \u0443\u043A\u0430\u0437\u0430\u043B \u0442\u043E\u0442 \u0436\u0435 \u043D\u043E\u043C\u0435\u0440.
+-- \u0421\u0432\u044F\u0437\u044B\u0432\u0430\u0435\u043C \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \xAB\u0414\u0430\xBB \u2014 \u0438\u043D\u0430\u0447\u0435 \u043A\u0442\u043E \u0443\u0433\u043E\u0434\u043D\u043E \u0432\u0432\u0451\u043B \u0431\u044B \u0447\u0443\u0436\u043E\u0439 \u043D\u043E\u043C\u0435\u0440 \u0438 \u0443\u0432\u0438\u0434\u0435\u043B \u0447\u0443\u0436\u0438\u0435 \u0437\u0430\u043F\u0438\u0441\u0438.
+create table if not exists link_requests (
+  id          bigserial primary key,
+  from_id     bigint not null,
+  to_id       bigint not null,
+  phone       text not null,
+  status      text not null default 'pending' check (status in ('pending','accepted','declined')),
+  created_at  timestamptz not null default now(),
+  answered_at timestamptz
+);
+create index if not exists link_requests_pair on link_requests(from_id, to_id);
 `;
+    MIGRATIONS_SQL = "-- \u0421\u0432\u044F\u0437\u043A\u0430 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432 \u043E\u0434\u043D\u043E\u0433\u043E \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430 \u0432 \u0440\u0430\u0437\u043D\u044B\u0445 \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u0430\u0445 (Telegram \u2194 MAX).\n-- \u0418\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E: \u0441\u0435\u0440\u0432\u0435\u0440 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442 \u044D\u0442\u043E\u0442 \u0444\u0430\u0439\u043B \u043F\u0440\u0438 \u043A\u0430\u0436\u0434\u043E\u043C \u0445\u043E\u043B\u043E\u0434\u043D\u043E\u043C \u0441\u0442\u0430\u0440\u0442\u0435 (server/db.ts \u2192 MIGRATIONS_SQL).\nalter table users add column if not exists phone text;          -- \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u043D\u043E\u043C\u0435\u0440, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u0447\u0435\u043B\u043E\u0432\u0435\u043A \u0443\u043A\u0430\u0437\u0430\u043B\nalter table users add column if not exists person_id bigint;    -- \u043E\u0431\u0449\u0438\u0439 id \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430: \u0443 \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0445 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432 \u043E\u0434\u0438\u043D\u0430\u043A\u043E\u0432\u044B\u0439\ncreate index if not exists users_phone on users(phone);\ncreate index if not exists users_person on users(person_id);\n\n-- \xAB\u042D\u0442\u043E \u0432\u044B?\xBB: \u0441\u043F\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u043C \u0412\u041B\u0410\u0414\u0415\u041B\u042C\u0426\u0410 \u0443\u0436\u0435 \u0438\u0437\u0432\u0435\u0441\u0442\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430 (to_id), \u043A\u043E\u0433\u0434\u0430 \u0434\u0440\u0443\u0433\u043E\u0439 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 (from_id) \u0443\u043A\u0430\u0437\u0430\u043B \u0442\u043E\u0442 \u0436\u0435 \u043D\u043E\u043C\u0435\u0440.\n-- \u0421\u0432\u044F\u0437\u044B\u0432\u0430\u0435\u043C \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \xAB\u0414\u0430\xBB \u2014 \u0438\u043D\u0430\u0447\u0435 \u043A\u0442\u043E \u0443\u0433\u043E\u0434\u043D\u043E \u0432\u0432\u0451\u043B \u0431\u044B \u0447\u0443\u0436\u043E\u0439 \u043D\u043E\u043C\u0435\u0440 \u0438 \u0443\u0432\u0438\u0434\u0435\u043B \u0447\u0443\u0436\u0438\u0435 \u0437\u0430\u043F\u0438\u0441\u0438.\ncreate table if not exists link_requests (\n  id          bigserial primary key,\n  from_id     bigint not null,\n  to_id       bigint not null,\n  phone       text not null,\n  status      text not null default 'pending' check (status in ('pending','accepted','declined')),\n  created_at  timestamptz not null default now(),\n  answered_at timestamptz\n);\ncreate index if not exists link_requests_pair on link_requests(from_id, to_id);\n";
   }
 });
 
@@ -316,7 +335,10 @@ function db() {
 }
 async function ensureSchema(sql) {
   const [row2] = await sql.unsafe(`select to_regclass('businesses') is not null as ok`);
-  if (row2?.ok) return;
+  if (row2?.ok) {
+    await sql.unsafe(MIGRATIONS_SQL);
+    return;
+  }
   try {
     await sql.unsafe(`create extension if not exists btree_gist with schema extensions`);
   } catch {
@@ -750,8 +772,9 @@ async function roleFor(db2, tgId, businessId, superadmins) {
 }
 async function businessesOfClient(db2, tgId, limit = 10) {
   const rows = await db2.query(
-    `select b.* from clients c join businesses b on b.id = c.business_id
-     where c.tg_id = $1 and b.status = 'active' order by c.last_seen desc limit $2`,
+    `select b.* from businesses b
+     join (select business_id, max(last_seen) as ls from clients where tg_id in ${samePerson(1)} group by business_id) c on c.business_id = b.id
+     where b.status = 'active' order by c.ls desc limit $2`,
     [tgId, limit]
   );
   return rows.map(rowToBusiness);
@@ -938,7 +961,8 @@ async function cancelBooking(db2, opts) {
   if (!b || b.business_id !== opts.business.id) throw new UserError("\u0417\u0430\u043F\u0438\u0441\u044C \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430");
   if (b.status !== "confirmed") throw new UserError("\u0417\u0430\u043F\u0438\u0441\u044C \u0443\u0436\u0435 \u043D\u0435\u0430\u043A\u0442\u0438\u0432\u043D\u0430");
   if (opts.by === "client") {
-    if (b.client_tg_id !== opts.tgId) throw new UserError("\u042D\u0442\u043E \u043D\u0435 \u0432\u0430\u0448\u0430 \u0437\u0430\u043F\u0438\u0441\u044C");
+    const [mine] = await db2.query(`select 1 as ok where $1::bigint in ${samePerson(2)}`, [b.client_tg_id, opts.tgId]);
+    if (!mine) throw new UserError("\u042D\u0442\u043E \u043D\u0435 \u0432\u0430\u0448\u0430 \u0437\u0430\u043F\u0438\u0441\u044C");
     const hoursLeft = (new Date(b.starts_at).getTime() - (opts.now ?? /* @__PURE__ */ new Date()).getTime()) / 36e5;
     if (hoursLeft < opts.business.settings.cancelHours) {
       throw new UserError(`\u041E\u0442\u043C\u0435\u043D\u0438\u0442\u044C \u043E\u043D\u043B\u0430\u0439\u043D \u043C\u043E\u0436\u043D\u043E \u043D\u0435 \u043F\u043E\u0437\u0436\u0435 \u0447\u0435\u043C \u0437\u0430 ${opts.business.settings.cancelHours} \u0447. \u041D\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u043C\u0430\u0441\u0442\u0435\u0440\u0443.`);
@@ -989,7 +1013,7 @@ async function platformStats(db2) {
   );
   return r;
 }
-var UserError, rowToBusiness, listServices, listStaff, listPortfolio, BookingConflict, clientBookings, bookingsInRange;
+var UserError, rowToBusiness, samePerson, listServices, listStaff, listPortfolio, BookingConflict, clientBookings, bookingsInRange;
 var init_store = __esm({
   "server/store.ts"() {
     "use strict";
@@ -1000,6 +1024,7 @@ var init_store = __esm({
     UserError = class extends Error {
     };
     rowToBusiness = (r) => ({ ...r, settings: withDefaults(r.template, r.settings) });
+    samePerson = (n) => `(select $${n}::bigint union select tg_id from users where person_id is not null and person_id = (select coalesce(person_id, tg_id) from users where tg_id = $${n}))`;
     listServices = (db2, businessId, all = false) => db2.query(
       `select * from services where business_id = $1 ${all ? "" : "and active"} order by sort, id`,
       [businessId]
@@ -1015,7 +1040,7 @@ var init_store = __esm({
       }
     };
     clientBookings = (db2, businessId, tgId) => db2.query(
-      `select * from bookings where business_id = $1 and client_tg_id = $2
+      `select * from bookings where business_id = $1 and client_tg_id in ${samePerson(2)}
      and (starts_at > now() - interval '30 days') order by starts_at desc limit 30`,
       [businessId, tgId]
     );
@@ -1024,6 +1049,99 @@ var init_store = __esm({
      where b.business_id = $1 and b.starts_at >= $2 and b.starts_at < $3 order by b.starts_at`,
       [businessId, from, to]
     );
+  }
+});
+
+// server/links.ts
+var links_exports = {};
+__export(links_exports, {
+  answerLink: () => answerLink,
+  autoLink: () => autoLink,
+  personIds: () => personIds,
+  platformName: () => platformName,
+  rememberPhone: () => rememberPhone
+});
+async function personIds(db2, id) {
+  const rows = await db2.query(
+    `select tg_id from users where coalesce(person_id, tg_id) = (select coalesce(person_id, tg_id) from users where tg_id = $1)`,
+    [id]
+  );
+  const ids = rows.map((r) => Number(r.tg_id));
+  return ids.length ? ids : [Number(id)];
+}
+async function rememberPhone(db2, id, phone) {
+  await db2.query(`update users set phone = $2 where tg_id = $1`, [id, phone]);
+}
+async function merge(db2, a, b) {
+  await db2.tx(async (t) => {
+    const [p] = await t.query(`select coalesce(person_id, tg_id) as p from users where tg_id = $1`, [a]);
+    const person = Number(p?.p ?? a);
+    await t.query(
+      `update users set person_id = $1 where tg_id = any($2::bigint[]) or coalesce(person_id, tg_id) in (
+         select coalesce(person_id, tg_id) from users where tg_id = any($2::bigint[]))`,
+      [person, [a, b]]
+    );
+  });
+}
+async function detach(db2, id) {
+  const ids = (await personIds(db2, id)).filter((x) => x !== Number(id));
+  await db2.query(`update users set person_id = null where tg_id = $1`, [id]);
+  if (ids.length === 1) await db2.query(`update users set person_id = null where tg_id = $1`, [ids[0]]);
+  else if (ids.length > 1) await db2.query(`update users set person_id = $1 where tg_id = any($2::bigint[])`, [ids[0], ids]);
+}
+async function autoLink(db2, fromId, phone, context) {
+  const mine = await personIds(db2, fromId);
+  const candidates = await db2.query(
+    `select u.tg_id from users u
+     where u.phone = $1 and u.tg_id <> all($2::bigint[]) and sign(u.tg_id) <> sign($3::bigint)
+       and not exists (
+         select 1 from link_requests r
+         where ((r.from_id = $3 and r.to_id = u.tg_id) or (r.from_id = u.tg_id and r.to_id = $3)) and r.status = 'declined'
+       )
+     limit 3`,
+    [phone, mine, fromId]
+  );
+  const notices = [];
+  for (const c of candidates) {
+    const toId = Number(c.tg_id);
+    await merge(db2, toId, fromId);
+    const [req] = await db2.query(
+      `insert into link_requests (from_id, to_id, phone, status, answered_at) values ($1, $2, $3, 'accepted', now()) returning id`,
+      [fromId, toId, phone]
+    );
+    const id = Number(req.id);
+    const from = platformName(fromId);
+    const what = context ? `\u0412 ${from} \u0432\u044B \u0437\u0430\u043F\u0438\u0441\u0430\u043B\u0438\u0441\u044C \u043A \xAB${esc(context.businessName)}\xBB \u043D\u0430 <b>${esc(fmtWhen(context.startsAt, context.timezone))}</b>.` : `\u0412 ${from} \u0443\u043A\u0430\u0437\u0430\u043D \u0432\u0430\u0448 \u043D\u043E\u043C\u0435\u0440 <code>${esc(phone)}</code>.`;
+    notices.push({
+      requestId: id,
+      toId,
+      html: [
+        `<b>\u0417\u0430\u043F\u0438\u0441\u044C \u0438\u0437 ${from}</b>`,
+        what,
+        "",
+        `\u0410\u043A\u043A\u0430\u0443\u043D\u0442\u044B \u0441\u0432\u044F\u0437\u0430\u043D\u044B \u043F\u043E \u043D\u043E\u043C\u0435\u0440\u0443 <code>${esc(phone)}</code>: \u0437\u0430\u043F\u0438\u0441\u0438 \u0432\u0438\u0434\u043D\u044B \u0438 \u0437\u0434\u0435\u0441\u044C, \u0438 \u0432 ${from}, \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F \u043F\u0440\u0438\u0445\u043E\u0434\u044F\u0442 \u0432 \u043E\u0431\u0430 \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u0430.`,
+        "<i>\u0415\u0441\u043B\u0438 \u044D\u0442\u043E \u0431\u044B\u043B\u0438 \u043D\u0435 \u0432\u044B \u2014 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u042D\u0442\u043E \u043D\u0435 \u044F\xBB.</i>"
+      ].join("\n"),
+      kb: [[{ text: "\u042D\u0442\u043E \u043D\u0435 \u044F", cb: `lnk:${id}:n` }]]
+    });
+  }
+  return notices;
+}
+async function answerLink(db2, requestId, answeredBy, yes) {
+  const [r] = await db2.query(`select from_id, to_id, status from link_requests where id = $1`, [requestId]);
+  if (!r || Number(r.to_id) !== Number(answeredBy)) return null;
+  if (yes) return { html: "\u0410\u043A\u043A\u0430\u0443\u043D\u0442\u044B \u0441\u0432\u044F\u0437\u0430\u043D\u044B." };
+  if (r.status === "declined") return { html: "\u0421\u0432\u044F\u0437\u044C \u0443\u0436\u0435 \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430." };
+  await detach(db2, Number(r.from_id));
+  await db2.query(`update link_requests set status = 'declined', answered_at = now() where id = $1`, [requestId]);
+  return { html: "\u0421\u0432\u044F\u0437\u044C \u043E\u0442\u043C\u0435\u043D\u0435\u043D\u0430: \u0437\u0430\u043F\u0438\u0441\u0438 \u0438\u0437 \u0434\u0440\u0443\u0433\u043E\u0433\u043E \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u0430 \u0437\u0434\u0435\u0441\u044C \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u0432\u0438\u0434\u043D\u044B, \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u044F \u0442\u0443\u0434\u0430 \u043D\u0435 \u043F\u0440\u0438\u0445\u043E\u0434\u044F\u0442." };
+}
+var platformName;
+var init_links = __esm({
+  "server/links.ts"() {
+    "use strict";
+    init_format();
+    platformName = (id) => id < 0 ? "MAX" : "Telegram";
   }
 });
 
@@ -1271,15 +1389,33 @@ __export(notify_exports, {
   notifySuperadmins: () => notifySuperadmins,
   onBookingCancelled: () => onBookingCancelled,
   onBookingCreated: () => onBookingCreated,
-  sendReminder: () => sendReminder
+  sendLinkOffers: () => sendLinkOffers,
+  sendReminder: () => sendReminder,
+  sendTo: () => sendTo
 });
 async function safeSend(chatId, html, extra) {
+  if (Number(chatId) < 0 && !config.maxBotToken) return false;
   try {
     await tg().sendMessage(chatId, html, extra);
     return true;
   } catch (e) {
     if (!isBlockedError(e)) console.error("sendMessage", chatId, e);
     return false;
+  }
+}
+async function toClient(db2, clientId, html, extra) {
+  const ids = await personIds(db2, Number(clientId)).catch(() => [Number(clientId)]);
+  const origin = platformName(Number(clientId));
+  await Promise.all(
+    ids.map((id) => safeSend(id, platformName(id) === origin ? html : `${html}
+
+<i>\u0417\u0430\u043F\u0438\u0441\u044C \u0441\u0434\u0435\u043B\u0430\u043D\u0430 \u0447\u0435\u0440\u0435\u0437 ${origin}.</i>`, extra))
+  );
+}
+async function sendLinkOffers(offers) {
+  for (const o of offers) {
+    const inline_keyboard = o.kb.map((row2) => row2.map((b) => ({ text: b.text, callback_data: b.cb ?? "" })));
+    await safeSend(o.toId, o.html, { reply_markup: { inline_keyboard } });
   }
 }
 async function adminRecipients(db2, businessId, staffId) {
@@ -1320,7 +1456,7 @@ async function onBookingCreated(db2, biz, b) {
     biz.settings.afterBookingText && GAP,
     biz.settings.afterBookingText && `<i>${esc(biz.settings.afterBookingText)}</i>`
   ]);
-  await safeSend(b.client_tg_id, clientText, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
+  await toClient(db2, b.client_tg_id, clientText, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
 }
 async function onBookingCancelled(db2, biz, b) {
   const sName = await staffName(db2, b.staff_id);
@@ -1342,7 +1478,7 @@ ${esc(b.service_title)}</blockquote>`,
 ${esc(b.service_title)}</blockquote>`,
       "\u0418\u0437\u0432\u0438\u043D\u0438\u0442\u0435 \u0437\u0430 \u043D\u0435\u0443\u0434\u043E\u0431\u0441\u0442\u0432\u043E. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435, \u043F\u043E\u0436\u0430\u043B\u0443\u0439\u0441\u0442\u0430, \u0434\u0440\u0443\u0433\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0443\u0434\u0435\u043C \u0440\u0430\u0434\u044B \u0432\u0430\u0441 \u0432\u0438\u0434\u0435\u0442\u044C."
     ]);
-    await safeSend(b.client_tg_id, text, webAppButton("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u0441\u043D\u043E\u0432\u0430", webAppUrl({ b: biz.slug })));
+    await toClient(db2, b.client_tg_id, text, webAppButton("\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u0441\u043D\u043E\u0432\u0430", webAppUrl({ b: biz.slug })));
   }
 }
 async function sendReminder(biz, b, kind, now = /* @__PURE__ */ new Date()) {
@@ -1355,7 +1491,8 @@ ${esc(b.service_title)}</blockquote>`,
     GAP,
     kind === "24h" ? "<i>\u0415\u0441\u043B\u0438 \u043F\u043B\u0430\u043D\u044B \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0438\u0441\u044C \u2014 \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u0435 \u0437\u0430\u043F\u0438\u0441\u044C, \u0447\u0442\u043E\u0431\u044B \u0432\u0440\u0435\u043C\u044F \u0434\u043E\u0441\u0442\u0430\u043B\u043E\u0441\u044C \u0434\u0440\u0443\u0433\u043E\u043C\u0443.</i>" : "\u0414\u043E \u0432\u0441\u0442\u0440\u0435\u0447\u0438!"
   ]);
-  return safeSend(b.client_tg_id, text, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
+  await toClient(db(), b.client_tg_id, text, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
+  return true;
 }
 async function notifySuperadmins(html) {
   await Promise.all(config.superadmins.map((id) => safeSend(id, html)));
@@ -1392,14 +1529,17 @@ ${esc(text)}`;
   }
   return { sent, failed };
 }
-var webAppButton, row, phoneHtml, staffName, GAP, join;
+var webAppButton, sendTo, row, phoneHtml, staffName, GAP, join;
 var init_notify = __esm({
   "server/notify.ts"() {
     "use strict";
+    init_db();
+    init_links();
     init_config();
     init_format();
     init_telegram();
     webAppButton = (text, url) => ({ reply_markup: { inline_keyboard: [[{ text, web_app: { url } }]] } });
+    sendTo = (id, html) => safeSend(id, html);
     row = (label, value) => `<i>${esc(label)}:</i> ${value}`;
     phoneHtml = (p) => `<code>${esc(p)}</code>`;
     staffName = async (db2, id) => (await db2.query(`select name from staff where id = $1`, [id]))[0]?.name;
@@ -1528,6 +1668,19 @@ async function onContact(uid, rawPhone) {
   if (u?.last_business_id) {
     await db().query(`update clients set phone = $3 where business_id = $1 and tg_id = $2`, [u.last_business_id, uid, pc.phone]);
   }
+  try {
+    const { rememberPhone: rememberPhone2, autoLink: autoLink2 } = await Promise.resolve().then(() => (init_links(), links_exports));
+    const { sendLinkOffers: sendLinkOffers2 } = await Promise.resolve().then(() => (init_notify(), notify_exports));
+    await rememberPhone2(db(), uid, pc.phone);
+    await sendLinkOffers2(await autoLink2(db(), uid, pc.phone));
+  } catch (e) {
+    console.error("link on contact", e);
+  }
+}
+async function onLinkAnswer(uid, requestId, yes) {
+  const { answerLink: answerLink2 } = await Promise.resolve().then(() => (init_links(), links_exports));
+  const res = await answerLink2(db(), requestId, uid, yes);
+  return { html: res ? res.html : "\u042D\u0442\u0430 \u043A\u043D\u043E\u043F\u043A\u0430 \u043D\u0435 \u0434\u043B\u044F \u0432\u0430\u0441." };
 }
 var isSuper, nameLink, helpReply;
 var init_flows = __esm({
@@ -1573,6 +1726,8 @@ async function handleMaxUpdate(update) {
     await upsertUser(db(), user);
     await maxAnswerCallback(String(cb.callback_id ?? ""));
     if (cb.payload === "masters") await reply(user.id, await mastersList(user.id));
+    const lnk = /^lnk:(\d+):([yn])$/.exec(String(cb.payload ?? ""));
+    if (lnk) await reply(user.id, await onLinkAnswer(user.id, Number(lnk[1]), lnk[2] === "y"));
     return;
   }
   if (type === "message_created") {
@@ -1711,6 +1866,12 @@ function register(b) {
     await send(ctx, await mastersList(ctx.from.id));
   });
   b.command("help", (ctx) => send(ctx, helpReply("tg")));
+  b.callbackQuery(/^lnk:(\d+):([yn])$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageReplyMarkup({ reply_markup: void 0 }).catch(() => {
+    });
+    await send(ctx, await onLinkAnswer(ctx.from.id, Number(ctx.match[1]), ctx.match[2] === "y"));
+  });
   b.on("message:contact", async (ctx) => {
     const c = ctx.message.contact;
     if (c.user_id === ctx.from.id) await onContact(ctx.from.id, c.phone_number);
@@ -1776,6 +1937,7 @@ async function runReminders(now = /* @__PURE__ */ new Date()) {
 // server/rpc.ts
 init_config();
 init_db();
+init_links();
 init_notify();
 init_slots();
 init_store();
@@ -1845,7 +2007,7 @@ async function boot(ctx, p) {
   }
   const [client] = business ? await db().query(`select name, phone from clients where business_id = $1 and tg_id = $2`, [business.id, u.id]) : [];
   const [next] = business ? await db().query(
-    `select starts_at, service_title from bookings where business_id = $1 and client_tg_id = $2
+    `select starts_at, service_title from bookings where business_id = $1 and client_tg_id in ${samePerson(2)}
          and status = 'confirmed' and starts_at > now() order by starts_at limit 1`,
     [business.id, u.id]
   ) : [];
@@ -1890,6 +2052,19 @@ async function book(ctx, p) {
     now: ctx.now
   });
   await onBookingCreated(db(), b, booking);
+  if (booking.client_phone) {
+    try {
+      await rememberPhone(db(), ctx.init.user.id, booking.client_phone);
+      const offers = await autoLink(db(), ctx.init.user.id, booking.client_phone, {
+        businessName: b.name,
+        startsAt: String(booking.starts_at),
+        timezone: b.timezone
+      });
+      await sendLinkOffers(offers);
+    } catch (e) {
+      console.error("link offers", e);
+    }
+  }
   return { id: booking.id, starts_at: booking.starts_at };
 }
 async function myBookings(ctx, p) {

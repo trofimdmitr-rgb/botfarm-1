@@ -1,4 +1,5 @@
-import type { Db } from "./db.js";
+import { type Db, db as globalDb } from "./db.js";
+import { personIds, platformName, type LinkOffer } from "./links.js";
 import { config, webAppUrl } from "./config.js";
 import { esc, fmtWhen, relDay, fmtTime, rub } from "./format.js";
 import type { Booking, Business } from "./store.js";
@@ -6,7 +7,12 @@ import { isBlockedError, tg } from "./telegram.js";
 
 const webAppButton = (text: string, url: string) => ({ reply_markup: { inline_keyboard: [[{ text, web_app: { url } }]] } });
 
+/**
+ * Отправка, которая никогда не роняет запись/бота: человек заблокировал бота, ни разу его не запускал,
+ * в MAX не подключён бот — просто пропускаем (и не засоряем логи ожидаемыми случаями).
+ */
 async function safeSend(chatId: number, html: string, extra?: Record<string, unknown>): Promise<boolean> {
+  if (Number(chatId) < 0 && !config.maxBotToken) return false;
   try {
     await tg().sendMessage(chatId, html, extra);
     return true;
@@ -15,6 +21,29 @@ async function safeSend(chatId: number, html: string, extra?: Record<string, unk
     return false;
   }
 }
+
+/**
+ * Сообщение клиенту — во ВСЕ его связанные мессенджеры (Telegram и MAX). В «чужом» мессенджере
+ * добавляем пометку, откуда пришла запись.
+ */
+async function toClient(db: Db, clientId: number, html: string, extra?: Record<string, unknown>) {
+  const ids = await personIds(db, Number(clientId)).catch(() => [Number(clientId)]);
+  const origin = platformName(Number(clientId));
+  await Promise.all(
+    ids.map((id) => safeSend(id, platformName(id) === origin ? html : `${html}\n\n<i>Запись сделана через ${origin}.</i>`, extra)),
+  );
+}
+
+/** Вопросы «Это вы?» в другой мессенджер (см. links.ts). */
+export async function sendLinkOffers(offers: LinkOffer[]) {
+  for (const o of offers) {
+    const inline_keyboard = o.kb.map((row) => row.map((b) => ({ text: b.text, callback_data: b.cb ?? "" })));
+    await safeSend(o.toId, o.html, { reply_markup: { inline_keyboard } });
+  }
+}
+
+/** Сообщение одному аккаунту (для ответов вне контекста бота). */
+export const sendTo = (id: number, html: string) => safeSend(id, html);
 
 async function adminRecipients(db: Db, businessId: number, staffId?: number): Promise<number[]> {
   const rows = await db.query<{ tg_id: number }>(
@@ -75,7 +104,7 @@ export async function onBookingCreated(db: Db, biz: Business, b: Booking) {
     biz.settings.afterBookingText && GAP,
     biz.settings.afterBookingText && `<i>${esc(biz.settings.afterBookingText)}</i>`,
   ]);
-  await safeSend(b.client_tg_id, clientText, webAppButton("Мои записи", webAppUrl({ b: biz.slug, view: "my" })));
+  await toClient(db, b.client_tg_id, clientText, webAppButton("Мои записи", webAppUrl({ b: biz.slug, view: "my" })));
 }
 
 export async function onBookingCancelled(db: Db, biz: Business, b: Booking) {
@@ -96,7 +125,7 @@ export async function onBookingCancelled(db: Db, biz: Business, b: Booking) {
       `<blockquote><s>${esc(fmtWhen(b.starts_at, biz.timezone))}</s>\n${esc(b.service_title)}</blockquote>`,
       "Извините за неудобство. Выберите, пожалуйста, другое время — будем рады вас видеть.",
     ]);
-    await safeSend(b.client_tg_id, text, webAppButton("Записаться снова", webAppUrl({ b: biz.slug })));
+    await toClient(db, b.client_tg_id, text, webAppButton("Записаться снова", webAppUrl({ b: biz.slug })));
   }
 }
 
@@ -109,7 +138,8 @@ export async function sendReminder(biz: Business, b: Booking, kind: "24h" | "2h"
     GAP,
     kind === "24h" ? "<i>Если планы изменились — отмените запись, чтобы время досталось другому.</i>" : "До встречи!",
   ]);
-  return safeSend(b.client_tg_id, text, webAppButton("Мои записи", webAppUrl({ b: biz.slug, view: "my" })));
+  await toClient(globalDb(), b.client_tg_id, text, webAppButton("Мои записи", webAppUrl({ b: biz.slug, view: "my" })));
+  return true;
 }
 
 export async function notifySuperadmins(html: string) {

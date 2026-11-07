@@ -155,4 +155,20 @@ export async function onContact(uid: number, rawPhone: string) {
   if (u?.last_business_id) {
     await db().query(`update clients set phone = $3 where business_id = $1 and tg_id = $2`, [u.last_business_id, uid, pc.phone]);
   }
+  // номер подтверждён мессенджером — запоминаем и связываем с аккаунтом в другом мессенджере (если он есть)
+  try {
+    const { rememberPhone, autoLink } = await import("./links.js");
+    const { sendLinkOffers } = await import("./notify.js");
+    await rememberPhone(db(), uid, pc.phone);
+    await sendLinkOffers(await autoLink(db(), uid, pc.phone));
+  } catch (e) {
+    console.error("link on contact", e);
+  }
+}
+
+/** Кнопка «Это не я» под оповещением о связке (lnk:<id>:n). */
+export async function onLinkAnswer(uid: number, requestId: number, yes: boolean): Promise<Reply> {
+  const { answerLink } = await import("./links.js");
+  const res = await answerLink(db(), requestId, uid, yes);
+  return { html: res ? res.html : "Эта кнопка не для вас." };
 }

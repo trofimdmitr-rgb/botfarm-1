@@ -69,6 +69,12 @@ function register(b: Bot) {
     await send(ctx, await flows.mastersList(ctx.from.id));
   });
   b.command("help", (ctx) => send(ctx, flows.helpReply("tg")));
+  // «Это вы?» — связка с аккаунтом MAX
+  b.callbackQuery(/^lnk:(\d+):([yn])$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+    await send(ctx, await flows.onLinkAnswer(ctx.from.id, Number(ctx.match[1]), ctx.match[2] === "y"));
+  });
 
   // Номер, которым клиент поделился из формы записи («Взять номер из Telegram»): сохраняем молча
   b.on("message:contact", async (ctx) => {
