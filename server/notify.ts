@@ -104,7 +104,23 @@ export async function onBookingCreated(db: Db, biz: Business, b: Booking) {
     biz.settings.afterBookingText && GAP,
     biz.settings.afterBookingText && `<i>${esc(biz.settings.afterBookingText)}</i>`,
   ]);
-  await toClient(db, b.client_tg_id, clientText, webAppButton("Мои записи", webAppUrl({ b: biz.slug, view: "my" })));
+  await toClient(db, b.client_tg_id, clientText + (await otherMessengerHint(db, b.client_tg_id, biz.slug)), webAppButton("Мои записи", webAppUrl({ b: biz.slug, view: "my" })));
+}
+
+/** «Получать напоминания и в MAX/Telegram» — если во втором мессенджере у человека аккаунта ещё нет. */
+async function otherMessengerHint(db: Db, clientId: number, slug: string): Promise<string> {
+  try {
+    const ids = await personIds(db, Number(clientId));
+    const fromMax = Number(clientId) < 0;
+    if (ids.some((id) => (id < 0) !== fromMax)) return ""; // уже есть в обоих
+    if (fromMax && config.botUsername) {
+      return `\n\n<a href="https://t.me/${config.botUsername}?start=${slug}">Получать напоминания и в Telegram</a>`;
+    }
+    if (!fromMax && config.maxBotToken && config.maxBotName) {
+      return `\n\n<a href="https://max.ru/${config.maxBotName}?start=${slug}">Получать напоминания и в MAX</a>`;
+    }
+  } catch {}
+  return "";
 }
 
 export async function onBookingCancelled(db: Db, biz: Business, b: Booking) {

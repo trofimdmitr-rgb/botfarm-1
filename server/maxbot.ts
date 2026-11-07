@@ -49,12 +49,15 @@ export async function handleMaxUpdate(update: any): Promise<void> {
     await store.upsertUser(db(), user);
     const text: string = String(msg.body?.text ?? "").trim();
 
-    // контакт из кнопки «поделиться номером»
+    // контакт из кнопки «Поделиться номером»: берём только СВОЙ контакт (max_info.user_id = отправитель)
     const contact = (msg.body?.attachments ?? []).find((a: any) => a?.type === "contact");
     if (contact) {
+      const own = contact.payload?.max_info?.user_id;
+      if (own != null && Number(own) !== Number(msg.sender.user_id)) return;
       const vcf: string = contact.payload?.vcf_info ?? "";
       const phone = vcf.match(/TEL[^:]*:([+\d\s()-]+)/i)?.[1]?.replace(/[^\d+]/g, "");
-      if (phone) await flows.onContact(user.id, phone);
+      const r = phone ? await flows.onContact(user.id, phone) : null;
+      if (r) await reply(user.id, r);
       return;
     }
 

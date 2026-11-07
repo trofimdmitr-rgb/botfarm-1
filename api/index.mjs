@@ -383,6 +383,14 @@ var init_db = __esm({
 });
 
 // server/format.ts
+var format_exports = {};
+__export(format_exports, {
+  esc: () => esc,
+  fmtTime: () => fmtTime,
+  fmtWhen: () => fmtWhen,
+  relDay: () => relDay,
+  rub: () => rub
+});
 import { DateTime } from "luxon";
 function fmtWhen(at, tz) {
   return DateTime.fromJSDate(new Date(at)).setZone(tz).setLocale("ru").toFormat("ccc, d MMMM, HH:mm");
@@ -1260,6 +1268,7 @@ function maxApi() {
 function maxKeyboard(rows) {
   const buttons = rows.map(
     (row2) => row2.map((b) => {
+      if (b.contact) return { type: "request_contact", text: b.text.slice(0, 128) };
       if (b.app) {
         const payload = encodeMaxStart(b.app);
         return { type: "open_app", text: b.text.slice(0, 128), web_app: config.maxBotName, ...payload ? { payload } : {} };
@@ -1460,7 +1469,26 @@ async function onBookingCreated(db2, biz, b) {
     biz.settings.afterBookingText && GAP,
     biz.settings.afterBookingText && `<i>${esc(biz.settings.afterBookingText)}</i>`
   ]);
-  await toClient(db2, b.client_tg_id, clientText, webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
+  await toClient(db2, b.client_tg_id, clientText + await otherMessengerHint(db2, b.client_tg_id, biz.slug), webAppButton("\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", webAppUrl({ b: biz.slug, view: "my" })));
+}
+async function otherMessengerHint(db2, clientId, slug) {
+  try {
+    const ids = await personIds(db2, Number(clientId));
+    const fromMax = Number(clientId) < 0;
+    if (ids.some((id) => id < 0 !== fromMax)) return "";
+    if (fromMax && config.botUsername) {
+      return `
+
+<a href="https://t.me/${config.botUsername}?start=${slug}">\u041F\u043E\u043B\u0443\u0447\u0430\u0442\u044C \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F \u0438 \u0432 Telegram</a>`;
+    }
+    if (!fromMax && config.maxBotToken && config.maxBotName) {
+      return `
+
+<a href="https://max.ru/${config.maxBotName}?start=${slug}">\u041F\u043E\u043B\u0443\u0447\u0430\u0442\u044C \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F \u0438 \u0432 MAX</a>`;
+    }
+  } catch {
+  }
+  return "";
 }
 async function onBookingCancelled(db2, biz, b) {
   const sName = await staffName(db2, b.staff_id);
@@ -1580,6 +1608,14 @@ async function mastersList(uid) {
   };
 }
 async function onStart(user, payloadRaw, platform) {
+  const replies = await startReplies(user, payloadRaw, platform);
+  if (replies.some((r) => r.menuSlug || r.html.startsWith("<b>\u0412\u0430\u0448\u0438 \u043C\u0430\u0441\u0442\u0435\u0440\u0430</b>"))) {
+    const ask = await contactAsk(user.id, platform).catch(() => null);
+    if (ask) replies.push(ask);
+  }
+  return replies;
+}
+async function startReplies(user, payloadRaw, platform) {
   const payload = payloadRaw.trim();
   const uid = user.id;
   if (payload.startsWith("inv_")) {
@@ -1665,21 +1701,59 @@ ${contacts}` : ""}`,
     kb: [[{ text: "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", app: { b: business.slug } }]]
   };
 }
+async function contactAsk(uid, platform) {
+  const [u] = await db().query(`select phone from users where tg_id = $1`, [uid]);
+  if (u?.phone) return null;
+  const other = platform === "tg" ? "MAX" : "Telegram";
+  return {
+    html: `\u041F\u043E\u0434\u0435\u043B\u0438\u0442\u0435\u0441\u044C \u043D\u043E\u043C\u0435\u0440\u043E\u043C \u2014 \u0435\u0441\u043B\u0438 \u0432\u044B \u0443\u0436\u0435 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u043B\u0438\u0441\u044C \u0447\u0435\u0440\u0435\u0437 ${other}, \u0432\u0430\u0448\u0438 \u0437\u0430\u043F\u0438\u0441\u0438 \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u0438 \u0437\u0434\u0435\u0441\u044C, \u0430 \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F \u0431\u0443\u0434\u0443\u0442 \u043F\u0440\u0438\u0445\u043E\u0434\u0438\u0442\u044C \u0432 \u043E\u0431\u0430 \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u0430.`,
+    askContact: true,
+    kb: [[{ text: "\u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F \u043D\u043E\u043C\u0435\u0440\u043E\u043C", contact: true }]]
+  };
+}
+async function upcomingSummary(uid) {
+  const rows = await db().query(
+    `select b.starts_at, b.service_title, z.name, z.timezone from bookings b join businesses z on z.id = b.business_id
+     where b.client_tg_id in ${samePerson(1)} and b.status = 'confirmed' and b.starts_at > now()
+     order by b.starts_at limit 5`,
+    [uid]
+  );
+  const { fmtWhen: fmtWhen2 } = await Promise.resolve().then(() => (init_format(), format_exports));
+  return rows.map((r) => `\u2022 <b>${esc(fmtWhen2(r.starts_at, r.timezone))}</b> \u2014 ${esc(r.service_title)}, \xAB${esc(r.name)}\xBB`);
+}
 async function onContact(uid, rawPhone) {
   const pc = checkPhone(rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`);
-  if (!pc.ok) return;
+  if (!pc.ok) return null;
   const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
   if (u?.last_business_id) {
     await db().query(`update clients set phone = $3 where business_id = $1 and tg_id = $2`, [u.last_business_id, uid, pc.phone]);
   }
+  let linked = false;
   try {
     const { rememberPhone: rememberPhone2, autoLink: autoLink2 } = await Promise.resolve().then(() => (init_links(), links_exports));
     const { sendLinkOffers: sendLinkOffers2 } = await Promise.resolve().then(() => (init_notify(), notify_exports));
     await rememberPhone2(db(), uid, pc.phone);
-    await sendLinkOffers2(await autoLink2(db(), uid, pc.phone));
+    const notices = await autoLink2(db(), uid, pc.phone);
+    linked = notices.length > 0;
+    await sendLinkOffers2(notices);
   } catch (e) {
     console.error("link on contact", e);
   }
+  const slug = u?.last_business_id ? (await getBusiness(db(), Number(u.last_business_id)))?.slug : void 0;
+  const kb = slug ? [[{ text: "\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438", app: { b: slug, view: "my" } }]] : [];
+  if (!linked) return { html: "\u0421\u043F\u0430\u0441\u0438\u0431\u043E, \u043D\u043E\u043C\u0435\u0440 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D.", kb, removeKeyboard: true };
+  const list = await upcomingSummary(uid);
+  return {
+    html: [
+      "<b>\u041D\u0430\u0448\u043B\u0438 \u0432\u0430\u0448 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 \u0432 \u0434\u0440\u0443\u0433\u043E\u043C \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u0435.</b>",
+      list.length ? "\u0412\u0430\u0448\u0438 \u0431\u043B\u0438\u0436\u0430\u0439\u0448\u0438\u0435 \u0437\u0430\u043F\u0438\u0441\u0438:" : "\u0417\u0430\u043F\u0438\u0441\u0438 \u0438 \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F \u0442\u0435\u043F\u0435\u0440\u044C \u0431\u0443\u0434\u0443\u0442 \u0437\u0434\u0435\u0441\u044C \u0438 \u0442\u0430\u043C.",
+      ...list,
+      "",
+      "<i>\u0417\u0430\u043F\u0438\u0441\u0438 \u0432\u0438\u0434\u043D\u044B \u0432 \u043E\u0431\u043E\u0438\u0445 \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u0430\u0445, \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u044F \u043F\u0440\u0438\u0434\u0443\u0442 \u0432 \u043E\u0431\u0430.</i>"
+    ].join("\n"),
+    kb,
+    removeKeyboard: true
+  };
 }
 async function onLinkAnswer(uid, requestId, yes) {
   const { answerLink: answerLink2 } = await Promise.resolve().then(() => (init_links(), links_exports));
@@ -1742,9 +1816,12 @@ async function handleMaxUpdate(update) {
     const text = String(msg.body?.text ?? "").trim();
     const contact = (msg.body?.attachments ?? []).find((a) => a?.type === "contact");
     if (contact) {
+      const own = contact.payload?.max_info?.user_id;
+      if (own != null && Number(own) !== Number(msg.sender.user_id)) return;
       const vcf = contact.payload?.vcf_info ?? "";
       const phone = vcf.match(/TEL[^:]*:([+\d\s()-]+)/i)?.[1]?.replace(/[^\d+]/g, "");
-      if (phone) await onContact(user.id, phone);
+      const r = phone ? await onContact(user.id, phone) : null;
+      if (r) await reply(user.id, r);
       return;
     }
     const [cmd, ...rest] = text.split(/\s+/);
@@ -1841,6 +1918,7 @@ function tgKeyboard(rows) {
   rows.forEach((row2, i) => {
     if (i) kb.row();
     for (const b of row2) {
+      if (b.contact) continue;
       if (b.app) kb.webApp(b.text, webAppUrl(b.app));
       else if (b.url) kb.url(b.text, b.url);
       else kb.text(b.text, b.cb ?? "");
@@ -1850,7 +1928,8 @@ function tgKeyboard(rows) {
 }
 async function send(ctx, replies) {
   for (const r of Array.isArray(replies) ? replies : [replies]) {
-    await ctx.reply(r.html, { parse_mode: "HTML", reply_markup: tgKeyboard(r.kb), link_preview_options: { is_disabled: true } });
+    const reply_markup = r.askContact ? { keyboard: [[{ text: "\u041F\u043E\u0434\u0435\u043B\u0438\u0442\u044C\u0441\u044F \u043D\u043E\u043C\u0435\u0440\u043E\u043C", request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } : r.removeKeyboard ? { remove_keyboard: true } : tgKeyboard(r.kb);
+    await ctx.reply(r.html, { parse_mode: "HTML", reply_markup, link_preview_options: { is_disabled: true } });
     if (r.menuSlug) {
       await ctx.api.setChatMenuButton({ chat_id: ctx.chat.id, menu_button: { type: "web_app", text: "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F", web_app: { url: webAppUrl({ b: r.menuSlug }) } } }).catch(() => {
       });
@@ -1878,7 +1957,9 @@ function register(b) {
   });
   b.on("message:contact", async (ctx) => {
     const c = ctx.message.contact;
-    if (c.user_id === ctx.from.id) await onContact(ctx.from.id, c.phone_number);
+    if (c.user_id !== ctx.from.id) return;
+    const r = await onContact(ctx.from.id, c.phone_number);
+    if (r) await send(ctx, r);
   });
   b.on("message", async (ctx) => send(ctx, await onOtherMessage(ctx.from.id)));
   b.on("my_chat_member", async (ctx) => {

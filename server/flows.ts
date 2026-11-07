@@ -10,7 +10,8 @@ import * as store from "./store.js";
 import { UserError } from "./store.js";
 
 export type Platform = "tg" | "max";
-export type Reply = { html: string; kb?: Btn[][]; menuSlug?: string };
+/** askContact — показать кнопку «Поделиться номером» (в Telegram это отдельная клавиатура под полем ввода). */
+export type Reply = { html: string; kb?: Btn[][]; menuSlug?: string; askContact?: boolean; removeKeyboard?: boolean };
 
 const isSuper = (id: number) => config.superadmins.includes(id);
 const nameLink = (u: TgUser, platform: Platform) =>
@@ -49,6 +50,16 @@ export async function mastersList(uid: number): Promise<Reply> {
 
 /** /start с параметром или без. Возвращает ответы по порядку (обычно один). */
 export async function onStart(user: TgUser, payloadRaw: string, platform: Platform): Promise<Reply[]> {
+  const replies = await startReplies(user, payloadRaw, platform);
+  // человек пришёл как клиент (карточка бизнеса или список мастеров) и номер ещё неизвестен — предложим поделиться
+  if (replies.some((r) => r.menuSlug || r.html.startsWith("<b>Ваши мастера</b>"))) {
+    const ask = await contactAsk(user.id, platform).catch(() => null);
+    if (ask) replies.push(ask);
+  }
+  return replies;
+}
+
+async function startReplies(user: TgUser, payloadRaw: string, platform: Platform): Promise<Reply[]> {
   const payload = payloadRaw.trim();
   const uid = user.id;
 
@@ -148,22 +159,67 @@ export async function onOtherMessage(uid: number): Promise<Reply> {
 }
 
 /** Номер, которым клиент поделился («Взять номер из …»): сохраняем молча в карточку клиента последнего бизнеса. */
-export async function onContact(uid: number, rawPhone: string) {
+/** Предложение поделиться номером — тем, чей номер мы ещё не знаем (чтобы связать Telegram и MAX сразу). */
+export async function contactAsk(uid: number, platform: Platform): Promise<Reply | null> {
+  const [u] = await db().query(`select phone from users where tg_id = $1`, [uid]);
+  if (u?.phone) return null;
+  const other = platform === "tg" ? "MAX" : "Telegram";
+  return {
+    html: `Поделитесь номером — если вы уже записывались через ${other}, ваши записи появятся и здесь, а напоминания будут приходить в оба мессенджера.`,
+    askContact: true,
+    kb: [[{ text: "Поделиться номером", contact: true }]],
+  };
+}
+
+/** Предстоящие записи человека во всех бизнесах и мессенджерах (для ответа после связки). */
+async function upcomingSummary(uid: number): Promise<string[]> {
+  const rows = await db().query<{ starts_at: string; service_title: string; name: string; timezone: string }>(
+    `select b.starts_at, b.service_title, z.name, z.timezone from bookings b join businesses z on z.id = b.business_id
+     where b.client_tg_id in ${store.samePerson(1)} and b.status = 'confirmed' and b.starts_at > now()
+     order by b.starts_at limit 5`,
+    [uid],
+  );
+  const { fmtWhen } = await import("./format.js");
+  return rows.map((r) => `• <b>${esc(fmtWhen(r.starts_at, r.timezone))}</b> — ${esc(r.service_title)}, «${esc(r.name)}»`);
+}
+
+/**
+ * Номер, которым человек поделился (кнопка в боте или «Взять номер из …» в мини-аппе). Номер подтверждён самим
+ * мессенджером: запоминаем и связываем с аккаунтом в другом мессенджере, если он есть.
+ */
+export async function onContact(uid: number, rawPhone: string): Promise<Reply | null> {
   const pc = checkPhone(rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`);
-  if (!pc.ok) return;
+  if (!pc.ok) return null;
   const [u] = await db().query(`select last_business_id from users where tg_id = $1`, [uid]);
   if (u?.last_business_id) {
     await db().query(`update clients set phone = $3 where business_id = $1 and tg_id = $2`, [u.last_business_id, uid, pc.phone]);
   }
-  // номер подтверждён мессенджером — запоминаем и связываем с аккаунтом в другом мессенджере (если он есть)
+  let linked = false;
   try {
     const { rememberPhone, autoLink } = await import("./links.js");
     const { sendLinkOffers } = await import("./notify.js");
     await rememberPhone(db(), uid, pc.phone);
-    await sendLinkOffers(await autoLink(db(), uid, pc.phone));
+    const notices = await autoLink(db(), uid, pc.phone);
+    linked = notices.length > 0;
+    await sendLinkOffers(notices);
   } catch (e) {
     console.error("link on contact", e);
   }
+  const slug = u?.last_business_id ? (await store.getBusiness(db(), Number(u.last_business_id)))?.slug : undefined;
+  const kb: Btn[][] = slug ? [[{ text: "Мои записи", app: { b: slug, view: "my" } }]] : [];
+  if (!linked) return { html: "Спасибо, номер сохранён.", kb, removeKeyboard: true };
+  const list = await upcomingSummary(uid);
+  return {
+    html: [
+      "<b>Нашли ваш аккаунт в другом мессенджере.</b>",
+      list.length ? "Ваши ближайшие записи:" : "Записи и напоминания теперь будут здесь и там.",
+      ...list,
+      "",
+      "<i>Записи видны в обоих мессенджерах, напоминания придут в оба.</i>",
+    ].join("\n"),
+    kb,
+    removeKeyboard: true,
+  };
 }
 
 /** Кнопка «Это не я» под оповещением о связке (lnk:<id>:n). */

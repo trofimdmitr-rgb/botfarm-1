@@ -35,6 +35,7 @@ export function tgKeyboard(rows: Btn[][] | undefined): InlineKeyboard | undefine
   rows.forEach((row, i) => {
     if (i) kb.row();
     for (const b of row) {
+      if (b.contact) continue; // в Telegram номер просят обычной клавиатурой (см. send)
       if (b.app) kb.webApp(b.text, webAppUrl(b.app));
       else if (b.url) kb.url(b.text, b.url);
       else kb.text(b.text, b.cb ?? "");
@@ -45,7 +46,13 @@ export function tgKeyboard(rows: Btn[][] | undefined): InlineKeyboard | undefine
 
 async function send(ctx: Context, replies: flows.Reply | flows.Reply[]) {
   for (const r of Array.isArray(replies) ? replies : [replies]) {
-    await ctx.reply(r.html, { parse_mode: "HTML", reply_markup: tgKeyboard(r.kb), link_preview_options: { is_disabled: true } });
+    // номер просим обычной клавиатурой под полем ввода; после ответа — убираем её (записи открываются кнопкой меню)
+    const reply_markup = r.askContact
+      ? { keyboard: [[{ text: "Поделиться номером", request_contact: true }]], resize_keyboard: true, one_time_keyboard: true }
+      : r.removeKeyboard
+        ? { remove_keyboard: true as const }
+        : tgKeyboard(r.kb);
+    await ctx.reply(r.html, { parse_mode: "HTML", reply_markup, link_preview_options: { is_disabled: true } });
     // нижняя кнопка «Записаться» в чате ведёт к последнему открытому бизнесу
     if (r.menuSlug) {
       await ctx.api
@@ -79,7 +86,9 @@ function register(b: Bot) {
   // Номер, которым клиент поделился из формы записи («Взять номер из Telegram»): сохраняем молча
   b.on("message:contact", async (ctx) => {
     const c = ctx.message.contact;
-    if (c.user_id === ctx.from.id) await flows.onContact(ctx.from.id, c.phone_number);
+    if (c.user_id !== ctx.from.id) return; // только свой номер
+    const r = await flows.onContact(ctx.from.id, c.phone_number);
+    if (r) await send(ctx, r);
   });
 
   b.on("message", async (ctx) => send(ctx, await flows.onOtherMessage(ctx.from.id)));

@@ -4,7 +4,9 @@ import { createPgliteDb } from "../server/pglite";
 import { db, setDb } from "../server/db";
 import { setSender } from "../server/telegram";
 import { dispatch } from "../server/rpc";
-import { onLinkAnswer } from "../server/flows";
+import { onContact, onLinkAnswer, onStart } from "../server/flows";
+import { setMaxApi } from "../server/max";
+import { handleMaxUpdate } from "../server/maxbot";
 import { upsertUser } from "../server/store";
 import type { InitData } from "../server/auth";
 
@@ -129,5 +131,77 @@ describe("связка Telegram ↔ MAX", () => {
     } finally {
       process.env.MAX_BOT_TOKEN = token;
     }
+  });
+});
+
+describe("поделиться номером — связка сразу при первом открытии бота", () => {
+  const maxCalls: any[] = [];
+  beforeEach(() => {
+    maxCalls.length = 0;
+    setMaxApi({ call: async (method, path, query, body) => (maxCalls.push({ method, path, query, body }), {} as any) });
+  });
+
+  it("новый человек открыл ссылку мастера — после карточки бот предлагает поделиться номером; если номер известен — нет", async () => {
+    await upsertUser(db(), { id: 400, first_name: "Оля" });
+    const replies = await onStart({ id: 400, first_name: "Оля" }, biz.slug, "tg");
+    expect(replies[0].html).toContain("Ногти Анны");
+    expect(replies[1]).toMatchObject({ askContact: true });
+    expect(replies[1].html).toContain("если вы уже записывались через MAX");
+
+    await bookAs(400, PHONE, 0); // номер стал известен из записи
+    const again = await onStart({ id: 400, first_name: "Оля" }, biz.slug, "tg");
+    expect(again.some((r) => r.askContact)).toBe(false);
+  });
+
+  it("MAX: бот при старте показывает кнопку «Поделиться номером» (request_contact)", async () => {
+    await handleMaxUpdate({ update_type: "bot_started", user: { user_id: 901, first_name: "Оля" }, payload: biz.slug });
+    const ask = maxCalls.filter((c) => c.path === "/messages")[1];
+    expect(ask.body.text).toContain("если вы уже записывались через Telegram");
+    expect(ask.body.attachments[0].payload.buttons[0][0]).toEqual({ type: "request_contact", text: "Поделиться номером" });
+  });
+
+  it("записалась в Telegram, потом в MAX поделилась номером → связка, в MAX — её записи, в Telegram — оповещение", async () => {
+    await bookAs(TG, PHONE, 0);
+    sent = [];
+    await handleMaxUpdate({ update_type: "bot_started", user: { user_id: 555, first_name: "Аня" }, payload: biz.slug });
+    await handleMaxUpdate({
+      update_type: "message_created",
+      message: {
+        sender: { user_id: 555, first_name: "Аня" },
+        recipient: { chat_type: "dialog", chat_id: 7 },
+        body: { attachments: [{ type: "contact", payload: { vcf_info: "BEGIN:VCARD\nTEL;TYPE=cell:79271234567\nEND:VCARD", max_info: { user_id: 555 } } }] },
+      },
+    });
+    const last = maxCalls.filter((c) => c.path === "/messages").pop();
+    expect(last.body.text).toContain("Нашли ваш аккаунт в другом мессенджере");
+    expect(last.body.text).toContain("Маникюр");
+    expect(noticeTo(TG)?.html).toContain("Запись из MAX");
+    expect(await myCount(MAX)).toBe(1);
+  });
+
+  it("чужой контакт (переслан чужой номер) не принимается", async () => {
+    await bookAs(TG, PHONE, 0);
+    await handleMaxUpdate({
+      update_type: "message_created",
+      message: {
+        sender: { user_id: 556, first_name: "Чужой" },
+        recipient: { chat_type: "dialog", chat_id: 8 },
+        body: { attachments: [{ type: "contact", payload: { vcf_info: "TEL:79271234567", max_info: { user_id: 555 } } }] },
+      },
+    });
+    expect(await myCount(-556)).toBe(0);
+  });
+
+  it("«Вы записаны» в Telegram — со ссылкой «Получать напоминания и в MAX», пока в MAX аккаунта нет", async () => {
+    sent = [];
+    await bookAs(TG, PHONE, 0);
+    const confirm = sent.find((m) => m.chatId === TG && m.html.includes("Вы записаны"))!;
+    expect(confirm.html).toContain(`https://max.ru/compot_max_bot?start=${biz.slug}`);
+
+    await upsertUser(db(), { id: MAX, first_name: "Аня" }); // открыла бота в MAX…
+    await onContact(MAX, "79271234567"); // …и поделилась номером — связаны
+    sent = [];
+    await bookAs(TG, PHONE, 1);
+    expect(sent.find((m) => m.chatId === TG && m.html.includes("Вы записаны"))!.html).not.toContain("max.ru");
   });
 });

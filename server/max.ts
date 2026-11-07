@@ -84,9 +84,10 @@ export function maxApi(): MaxApi {
 // ---------- кнопки ----------
 
 /** Кнопка в нейтральном виде — из неё строятся и кнопки Telegram, и кнопки MAX. */
-export type Btn = { text: string; app?: { b?: string; view?: string }; url?: string; cb?: string };
+export type Btn = { text: string; app?: { b?: string; view?: string }; url?: string; cb?: string; contact?: boolean };
 
 type MaxButton =
+  | { type: "request_contact"; text: string }
   | { type: "open_app"; text: string; web_app: string; payload?: string }
   | { type: "link"; text: string; url: string }
   | { type: "callback"; text: string; payload: string };
@@ -95,6 +96,7 @@ export function maxKeyboard(rows: Btn[][]): unknown[] {
   const buttons: MaxButton[][] = rows
     .map((row) =>
       row.map((b): MaxButton => {
+        if (b.contact) return { type: "request_contact", text: b.text.slice(0, 128) };
         if (b.app) {
           const payload = encodeMaxStart(b.app);
           return { type: "open_app", text: b.text.slice(0, 128), web_app: config.maxBotName, ...(payload ? { payload } : {}) };
