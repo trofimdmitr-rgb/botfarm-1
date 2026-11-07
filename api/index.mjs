@@ -336,7 +336,11 @@ function db() {
 async function ensureSchema(sql) {
   const [row2] = await sql.unsafe(`select to_regclass('businesses') is not null as ok`);
   if (row2?.ok) {
-    await sql.unsafe(MIGRATIONS_SQL);
+    try {
+      await sql.unsafe(MIGRATIONS_SQL);
+    } catch (e) {
+      console.error("migrations", e);
+    }
     return;
   }
   try {
@@ -2577,10 +2581,7 @@ async function status() {
     return json({ ok: false, db: false, error: String(e?.message ?? e).replace(/postgres(ql)?:\/\/[^\s]+/g, "<url>") }, 500);
   }
   const info = config.botToken ? await rawApi().getWebhookInfo().catch(() => null) : null;
-  const [sch] = await db().query(
-    `select (select count(*) from information_schema.columns where table_name = 'users' and column_name in ('phone','person_id'))::int as n,
-              to_regclass('link_requests') is not null as lr`
-  ).catch(() => [{ n: 0, lr: false }]);
+  const schemaError = await db().query(`select phone, person_id from users limit 1`).then(() => db().query(`select id from link_requests limit 1`)).then(() => null).catch((e) => String(e?.message ?? e).slice(0, 160));
   return json({
     ok: true,
     db: true,
@@ -2589,7 +2590,7 @@ async function status() {
     pending: info?.pending_update_count ?? null,
     lastError: info?.last_error_message ?? null,
     superadmins: config.superadmins.length,
-    schema: sch?.n === 2 && sch?.lr ? "ok" : "\u043D\u0443\u0436\u043D\u0430 \u0434\u043E\u0440\u0430\u0431\u043E\u0442\u043A\u0430 \u0441\u0445\u0435\u043C\u044B (db/003_links.sql)",
+    schema: schemaError ? `\u043E\u0448\u0438\u0431\u043A\u0430: ${schemaError}` : "ok",
     publicUrl: config.publicUrl,
     production: config.isProduction,
     max: config.maxBotToken ? { ...maxState, bot: config.maxBotName || maxState.bot } : "\u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D (\u043D\u0435\u0442 MAX_BOT_TOKEN)"

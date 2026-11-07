@@ -156,13 +156,12 @@ async function status(): Promise<Response> {
     return json({ ok: false, db: false, error: String(e?.message ?? e).replace(/postgres(ql)?:\/\/[^\s]+/g, "<url>") }, 500);
   }
   const info = config.botToken ? await rawApi().getWebhookInfo().catch(() => null) : null;
-  // схема догнана доработками (db/003_links.sql)?
-  const [sch] = await db()
-    .query<{ n: number; lr: boolean }>(
-      `select (select count(*) from information_schema.columns where table_name = 'users' and column_name in ('phone','person_id'))::int as n,
-              to_regclass('link_requests') is not null as lr`,
-    )
-    .catch(() => [{ n: 0, lr: false }]);
+  // схема догнана доработками (db/003_links.sql)? — пробуем прочитать новые поля
+  const schemaError = await db()
+    .query(`select phone, person_id from users limit 1`)
+    .then(() => db().query(`select id from link_requests limit 1`))
+    .then(() => null)
+    .catch((e: any) => String(e?.message ?? e).slice(0, 160));
   return json({
     ok: true,
     db: true,
@@ -171,7 +170,7 @@ async function status(): Promise<Response> {
     pending: info?.pending_update_count ?? null,
     lastError: info?.last_error_message ?? null,
     superadmins: config.superadmins.length,
-    schema: sch?.n === 2 && sch?.lr ? "ok" : "нужна доработка схемы (db/003_links.sql)",
+    schema: schemaError ? `ошибка: ${schemaError}` : "ok",
     publicUrl: config.publicUrl,
     production: config.isProduction,
     max: config.maxBotToken ? { ...maxState, bot: config.maxBotName || maxState.bot } : "не подключён (нет MAX_BOT_TOKEN)",

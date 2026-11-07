@@ -64,7 +64,11 @@ async function ensureSchema(sql: postgres.Sql<any>) {
   const [row] = await sql.unsafe(`select to_regclass('businesses') is not null as ok`);
   if (row?.ok) {
     // база уже есть — догоняем схему идемпотентными доработками
-    await sql.unsafe(MIGRATIONS_SQL);
+    try {
+      await sql.unsafe(MIGRATIONS_SQL);
+    } catch (e) {
+      console.error("migrations", e);
+    }
     return;
   }
   try {
