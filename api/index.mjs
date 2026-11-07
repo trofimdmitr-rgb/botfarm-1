@@ -2419,7 +2419,7 @@ async function handle(req) {
   const url = new URL(req.url);
   runtime.requestHost = req.headers.get("x-forwarded-host") ?? url.host;
   const route = url.searchParams.get("route") || url.pathname.replace(/^\/api\/?/, "");
-  if (route !== "photo" && (process.env.DATABASE_URL || process.env.POSTGRES_URL)) await refreshPlatform(route === "health");
+  if (route !== "photo" && route !== "log" && (process.env.DATABASE_URL || process.env.POSTGRES_URL)) await refreshPlatform(route === "health");
   switch (route) {
     case "rpc":
       return rpc(req);
@@ -2432,6 +2432,11 @@ async function handle(req) {
     }
     case "max":
       return maxWebhook(req);
+    case "log": {
+      const body = await req.text().catch(() => "");
+      console.error("client error", body.slice(0, 1500));
+      return new Response(null, { status: 204 });
+    }
     case "photo":
       return photo(url);
     case "cron":

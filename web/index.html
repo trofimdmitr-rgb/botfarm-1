@@ -5,11 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <title>Онлайн-запись</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- мост MAX грузим только когда мини-апп открыт в MAX (адрес в кабинете MAX: …/?max=1) -->
     <script>
-      if (/[?&]max=1/.test(location.search) || (/WebAppData=/.test(location.hash) && !/tgWebAppData=/.test(location.hash)))
-        document.write('<script src="https://st.max.ru/js/max-web-app.js"><\/script>');
+      // Если что-то сломалось до запуска приложения — показать причину, а не белый экран, и сообщить на сервер.
+      (function () {
+        var shown = false;
+        function report(msg) {
+          try {
+            navigator.sendBeacon &&
+              navigator.sendBeacon("/api/log", JSON.stringify({ msg: String(msg).slice(0, 500), href: location.origin + location.pathname + location.search, ua: navigator.userAgent, max: !!window.WebApp }));
+          } catch (e) {}
+        }
+        function show(msg) {
+          report(msg);
+          if (shown) return;
+          var root = document.getElementById("root");
+          if (root && root.children.length) return;
+          shown = true;
+          document.body.innerHTML =
+            '<div style="font:15px/1.45 system-ui,sans-serif;padding:32px 20px;color:#333;text-align:center"><b>Не получилось открыть приложение</b><br><span style="color:#888;font-size:13px">' +
+            String(msg).replace(/[<>&]/g, "") +
+            '</span><br><br><button onclick="location.reload()" style="padding:10px 18px;border-radius:10px;border:0;background:#2481cc;color:#fff;font-size:15px">Повторить</button></div>';
+        }
+        window.__bootError = show;
+        window.addEventListener("error", function (e) { show(e.message || "ошибка загрузки"); });
+        window.addEventListener("unhandledrejection", function (e) { show((e.reason && e.reason.message) || e.reason || "ошибка"); });
+        // сторожевой таймер: через 12 с приложение должно было отрисоваться
+        setTimeout(function () {
+          var root = document.getElementById("root");
+          if (!root || !root.children.length) show("Приложение не загрузилось за 12 секунд");
+        }, 12000);
+      })();
+
+      // В MAX грузим только мост MAX, в остальных случаях — скрипт Telegram.
+      // (В MAX скрипт telegram.org может не загружаться совсем — синхронный скрипт тогда держит белый экран.)
+      // Адрес мини-приложения в кабинете MAX: …/?max=1
+      window.__isMax = /[?&]max=1/.test(location.search) || (/WebAppData=/.test(location.hash) && !/tgWebAppData=/.test(location.hash));
+      document.write(
+        window.__isMax
+          ? '<script src="https://st.max.ru/js/max-web-app.js"><\/script>'
+          : '<script src="https://telegram.org/js/telegram-web-app.js"><\/script>',
+      );
     </script>
   </head>
   <body>
