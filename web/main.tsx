@@ -8,19 +8,17 @@ import { Landing, SuperPanel } from "./platform";
 import type { Boot } from "./types";
 import { ErrorBox, Spinner } from "./ui";
 // Шрифты «Розового света» встроены в сборку (кириллица + латиница; браузер качает только нужные начертания):
-// Unbounded — заголовки и кнопки, Onest — текст, JetBrains Mono — время, цены, подписи, Great Vibes — имя мастера и билет.
+// три шрифта: Unbounded — заголовки и кнопки, Onest — текст, цифры и подписи, Great Vibes — имя мастера и постер.
 import "@fontsource/unbounded/cyrillic-500.css";
 import "@fontsource/unbounded/latin-500.css";
 import "@fontsource/unbounded/cyrillic-700.css";
 import "@fontsource/unbounded/latin-700.css";
 import "@fontsource/onest/cyrillic-400.css";
 import "@fontsource/onest/latin-400.css";
+import "@fontsource/onest/cyrillic-500.css";
+import "@fontsource/onest/latin-500.css";
 import "@fontsource/onest/cyrillic-600.css";
 import "@fontsource/onest/latin-600.css";
-import "@fontsource/jetbrains-mono/cyrillic-400.css";
-import "@fontsource/jetbrains-mono/latin-400.css";
-import "@fontsource/jetbrains-mono/cyrillic-500.css";
-import "@fontsource/jetbrains-mono/latin-500.css";
 import "@fontsource/great-vibes/cyrillic-400.css";
 import "@fontsource/great-vibes/latin-400.css";
 import "./styles.css";
@@ -119,6 +117,7 @@ function App() {
       {/* мягкий свет и зерно за экранами клиента (в панели мастера — спокойный фон без них) */}
       {theme && showTabs && (
         <div className="g-light" aria-hidden>
+          <i />
           <i />
           <i />
           <i />

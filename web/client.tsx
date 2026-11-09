@@ -1,5 +1,5 @@
-// Клиентская часть в стиле «Розовый свет»: пастельный фон со свечением и зерном, имя мастера рукописным,
-// заголовки — Unbounded, время и цены — моно, как трек-лист альбома. После записи — постер для сторис.
+// Клиентская часть в стиле «Розовый свет»: пастельный фон со свечением и зерном, имя мастера рукописным (Great Vibes),
+// заголовки и кнопки — Unbounded, текст, цифры и подписи — Onest. Время — как трек-лист альбома, после записи — постер для сторис.
 import { useEffect, useMemo, useState } from "react";
 import {
   addDays,
@@ -113,16 +113,11 @@ export function BusinessHome(p: {
 
   return (
     <div className={`page g-page g-home ${banner ? "g-has-cover" : ""}`}>
-      <div className="g-meta">
-        <span>@{b.slug}</span>
-        <span>
-          <i className={`g-dot ${open ? "" : "g-dot-off"}`} /> {open ? "запись открыта" : "скоро откроем запись"}
-        </span>
-      </div>
-
+      {/* обложка во всю ширину: сверху и снизу размывается и растворяется в цвете страницы */}
       {banner && (
-        <div className="g-cover" aria-hidden>
-          <img src={banner} alt="" />
+        <div className="cover g-cover" aria-hidden>
+          <img className="g-cover-img" src={banner} alt="" />
+          <img className="g-cover-blur" src={banner} alt="" />
         </div>
       )}
 
@@ -869,13 +864,13 @@ export function StatusBadge({ status, by }: { status: Booking["status"]; by?: Bo
 
 export type ClientTab = "home" | "portfolio" | "book" | "my";
 
-/** Нижняя панель клиента: Главная · Работы · Запись · Мои записи — моно-подписи, точка у текущей. */
+/** Нижняя панель клиента: Главная · Работы · Запись · Мои записи — точка у текущей. */
 export function ClientTabBar(p: { active: ClientTab | null; hasWorks: boolean; onGo: (t: ClientTab) => void }) {
   const items: [ClientTab, string][] = [
-    ["home", "главная"],
-    ...(p.hasWorks ? ([["portfolio", "работы"]] as [ClientTab, string][]) : []),
-    ["book", "запись"],
-    ["my", "мои записи"],
+    ["home", "Главная"],
+    ...(p.hasWorks ? ([["portfolio", "Работы"]] as [ClientTab, string][]) : []),
+    ["book", "Запись"],
+    ["my", "Мои записи"],
   ];
   return (
     <nav className="tabbar g-tabbar">

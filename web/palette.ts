@@ -104,7 +104,7 @@ function grainTile(color: string): string {
       img.data[i] = r;
       img.data[i + 1] = gg;
       img.data[i + 2] = b;
-      img.data[i + 3] = rnd() < 0.5 ? 0 : Math.round(rnd() * 46);
+      img.data[i + 3] = rnd() < 0.55 ? 0 : Math.round(rnd() * 30);
     }
     ctx.putImageData(img, 0, 0);
     url = cv.toDataURL("image/png");

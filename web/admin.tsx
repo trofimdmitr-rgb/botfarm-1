@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import {
   addDays,
@@ -16,6 +16,7 @@ import {
   fmtTime,
   fmtWeekday,
   haptic,
+  logClientError,
   photoUrl,
   rub,
   RU_TIMEZONES,
@@ -688,31 +689,38 @@ function PortfolioEditor({ ov }: Ctx) {
   const [busy, setBusy] = useState(false);
   const photos = data ?? [];
 
-  const upload = async (files: FileList | null) => {
-    if (!files?.length) return;
+  const upload = async (files: File[]) => {
+    if (!files.length || busy) return;
     setBusy(true);
+    let cur: File | undefined;
     try {
-      for (const f of Array.from(files).slice(0, 10)) {
+      for (const f of files.slice(0, 10)) {
+        cur = f;
         const imageBase64 = await compressImage(f);
         await api("admin.portfolioAdd", { businessId: b.id, imageBase64 });
       }
       haptic("success");
       reload();
     } catch (e: any) {
+      logClientError("portfolioAdd", e, cur);
       await alertMsg(e.message);
+      reload();
     } finally {
       setBusy(false);
     }
   };
+  const pick = useImagePick(upload, true);
 
   return (
     <>
       <h2 className="page-title">Портфолио</h2>
       <p className="muted pad">Фото хранятся в Telegram — бесплатно и без ограничений по месту. До 60 фото.</p>
-      <label className={`btn btn-primary btn-block upload ${busy ? "disabled" : ""}`}>
-        {busy ? "Загружаю…" : "＋ Добавить фото"}
-        <input type="file" accept="image/*" multiple hidden disabled={busy} onChange={(e) => upload(e.target.files)} />
-      </label>
+      <div className={`banner-drop ${pick.over ? "banner-drop-over" : ""}`} {...pick.drop}>
+        <button className="btn btn-primary btn-block upload" disabled={busy} onClick={pick.open}>
+          {busy ? "Загружаю…" : "＋ Добавить фото"}
+        </button>
+        {pick.input}
+      </div>
       {!data && <Spinner />}
       <div className="gallery gallery-grid">
         {photos.map((ph) => (
@@ -870,12 +878,66 @@ function Admins({ ov, reload, toast }: Ctx) {
 
 // ---------------- Баннер ----------------
 
+/** Выбор фото: кнопка открывает выбор файла; на компьютере можно ещё перетащить файл или вставить Ctrl+V. */
+function useImagePick(onFiles: (files: File[]) => void, multiple = false) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+  const take = (list: FileList | null | undefined) => {
+    const files = Array.from(list ?? []).filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif|gif|bmp|avif)$/i.test(f.name));
+    if (files.length) onFiles(multiple ? files : files.slice(0, 1));
+  };
+  const cb = useRef(take);
+  cb.current = take;
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest("input, textarea")) return;
+      if (e.clipboardData?.files?.length) {
+        e.preventDefault();
+        cb.current(e.clipboardData.files);
+      }
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, []);
+  return {
+    open: () => ref.current?.click(),
+    over,
+    input: (
+      <input
+        ref={ref}
+        className="file-input"
+        type="file"
+        accept="image/*"
+        multiple={multiple}
+        tabIndex={-1}
+        aria-hidden
+        onChange={(e) => {
+          take(e.target.files);
+          e.target.value = ""; // тот же файл можно выбрать ещё раз
+        }}
+      />
+    ),
+    drop: {
+      onDragOver: (e: DragEvent) => {
+        e.preventDefault();
+        setOver(true);
+      },
+      onDragLeave: () => setOver(false),
+      onDrop: (e: DragEvent) => {
+        e.preventDefault();
+        setOver(false);
+        take(e.dataTransfer.files);
+      },
+    },
+  };
+}
+
 function BannerEditor(p: { businessId: number; fileId?: string; onChange: (fileId: string) => void }) {
   const [busy, setBusy] = useState(false);
   const url = bannerUrl(p.businessId, p.fileId);
-  const upload = async (files: FileList | null) => {
-    const f = files?.[0];
-    if (!f) return;
+  const upload = async ([f]: File[]) => {
+    if (!f || busy) return;
     setBusy(true);
     try {
       const [imageBase64, color] = await Promise.all([compressImage(f, 1600), dominantColorOfFile(f)]);
@@ -883,35 +945,39 @@ function BannerEditor(p: { businessId: number; fileId?: string; onChange: (fileI
       haptic("success");
       p.onChange(res.settings.bannerFileId);
     } catch (e: any) {
+      logClientError("bannerSet", e, f);
       await alertMsg(e.message);
     } finally {
       setBusy(false);
     }
   };
+  const pick = useImagePick(upload);
   return (
-    <Section title="Обложка на главной" footer="Горизонтальное фото — шапка вашей страницы. Снизу оно мягко растворится в цвете страницы.">
-      {url && (
-        <div className="banner-preview">
-          <img src={url} alt="" />
-        </div>
-      )}
-      <div className="banner-actions">
-        <label className={`btn btn-secondary btn-small ${busy ? "disabled" : ""}`}>
-          {busy ? "Загружаю…" : url ? "Заменить фото" : "＋ Загрузить фото"}
-          <input type="file" accept="image/*" hidden disabled={busy} onChange={(e) => upload(e.target.files)} />
-        </label>
+    <Section title="Обложка на главной" footer="Горизонтальное фото — шапка вашей страницы: сверху и снизу оно мягко растворится в цвете страницы. На компьютере фото можно перетащить сюда или вставить (Ctrl+V).">
+      <div className={`banner-drop ${pick.over ? "banner-drop-over" : ""}`} {...pick.drop}>
         {url && (
-          <button
-            className="btn btn-danger btn-small"
-            onClick={async () => {
-              if (!(await confirmMsg("Убрать баннер?"))) return;
-              await api("admin.bannerRemove", { businessId: p.businessId });
-              p.onChange("");
-            }}
-          >
-            Убрать
-          </button>
+          <div className="banner-preview">
+            <img src={url} alt="" />
+          </div>
         )}
+        <div className="banner-actions">
+          <button className="btn btn-secondary btn-small" disabled={busy} onClick={pick.open}>
+            {busy ? "Загружаю…" : url ? "Заменить фото" : "＋ Загрузить фото"}
+          </button>
+          {url && (
+            <button
+              className="btn btn-danger btn-small"
+              onClick={async () => {
+                if (!(await confirmMsg("Убрать обложку?"))) return;
+                await api("admin.bannerRemove", { businessId: p.businessId });
+                p.onChange("");
+              }}
+            >
+              Убрать
+            </button>
+          )}
+        </div>
+        {pick.input}
       </div>
     </Section>
   );

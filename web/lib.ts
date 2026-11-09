@@ -207,15 +207,55 @@ export const photoUrl = (id: number) => `/api/photo?id=${id}`;
 export const bannerUrl = (businessId: number, fileId?: string) =>
   fileId ? `/api/photo?banner=${businessId}&v=${encodeURIComponent(fileId.slice(-12))}` : null;
 
-/** Сжать фото в браузере перед загрузкой (≤1600px, JPEG). */
+/**
+ * Открыть фото из файла. createImageBitmap есть не во всех встроенных браузерах (Telegram Desktop, старые WebView)
+ * и не понимает часть форматов — тогда пробуем обычный <img>. Не вышло — понятная ошибка вместо английской.
+ */
+export async function decodeImage(file: File): Promise<{ src: CanvasImageSource; w: number; h: number }> {
+  try {
+    const bmp = await createImageBitmap(file);
+    return { src: bmp, w: bmp.width, h: bmp.height };
+  } catch {}
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise<void>((ok, bad) => {
+      img.onload = () => ok();
+      img.onerror = () => bad(new Error("decode"));
+      img.src = url;
+    });
+    if (!img.naturalWidth) throw new Error("decode");
+    return { src: img, w: img.naturalWidth, h: img.naturalHeight };
+  } catch {
+    const ext = (file.name.split(".").pop() || "").toUpperCase();
+    throw new ApiError(
+      `Не получилось открыть фото${ext ? ` (${ext})` : ""}. Сохраните его как JPG или PNG и попробуйте снова — или загрузите с телефона.`,
+    );
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+}
+
+/** Сжать фото в браузере перед загрузкой (≤max px по длинной стороне, JPEG). */
 export async function compressImage(file: File, max = 1600): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const { src, w, h } = await decodeImage(file);
+  const scale = Math.min(1, max / Math.max(w, h));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bmp.width * scale);
-  canvas.height = Math.round(bmp.height * scale);
-  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff"; // прозрачный PNG — на белом, а не на чёрном
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+/** Записать ошибку загрузки в логи сервера (без персональных данных) — чтобы видеть, что ломается на компьютерах. */
+export function logClientError(where: string, e: unknown, file?: File) {
+  try {
+    const msg = `${where}: ${(e as any)?.message ?? e}${file ? ` [${file.type || "?"} ${Math.round(file.size / 1024)}KB]` : ""}`;
+    navigator.sendBeacon?.("/api/log", JSON.stringify({ msg: msg.slice(0, 500), ua: navigator.userAgent, tg: WA?.platform ?? "", max: inMax }));
+  } catch {}
 }
 
 /**
@@ -265,7 +305,7 @@ export function isLight(hex: string): boolean {
 
 export async function dominantColorOfFile(file: File): Promise<string> {
   try {
-    return dominantColor(await createImageBitmap(file));
+    return dominantColor((await decodeImage(file)).src);
   } catch {
     return "";
   }
