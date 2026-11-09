@@ -524,7 +524,7 @@ html.glow body { font-family: var(--f-text); background: transparent; font-varia
 .g-light i:nth-child(1) { left: -35vw; top: -12vh; width: 120vw; height: 120vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-a) 62%, transparent), transparent); }
 .g-light i:nth-child(2) { right: -40vw; top: 32vh; width: 110vw; height: 110vw; background: radial-gradient(closest-side, var(--glow-b), transparent); animation-duration: 19s; animation-direction: alternate-reverse; }
 .g-light i:nth-child(3) { left: -20vw; bottom: -30vh; width: 100vw; height: 100vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-c) 55%, transparent), transparent); animation-duration: 23s; }
-/* переливание: поверх яркого пятна лежит второе, сдвинутое по оттенку (--glow-d), оно медленно проявляется и гаснет,
+/* переливание: поверх яркого пятна лежит второе того же цвета, но насыщеннее и темнее (--glow-d), оно медленно проявляется и гаснет,
    а среднее пятно «дышит». Только transform и opacity — заметно, но спокойно и дёшево для телефона. */
 .g-light i:nth-child(4) {
   left: -30vw; top: -6vh; width: 120vw; height: 120vw;
@@ -551,29 +551,31 @@ html.glow body { font-family: var(--f-text); background: transparent; font-varia
 .g-home > :not(.g-cover) { position: relative; }
 .g-cover {
   position: absolute; left: 0; right: 0; top: 0; height: 470px; overflow: hidden; isolation: isolate; pointer-events: none;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 50%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 50%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 8%, #000 52%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 8%, #000 52%, transparent 100%);
 }
-.g-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+/* в видимую часть попадает середина фото, а не верх: картинка сдвинута вверх и центр приходится на зону имени */
+.g-cover img { position: absolute; left: 0; right: 0; top: -120px; width: 100%; height: calc(100% + 120px); object-fit: cover; object-position: center; display: block; }
 .g-cover-img { animation: g-focus 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* ниже имени фото мягко размывается — текст читается без подсветки букв */
 .g-cover-blur {
-  filter: blur(14px) saturate(1.15); transform: scale(1.12);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 8%, rgba(0, 0, 0, 0.7) 24%, #000 40%);
-  mask-image: linear-gradient(to bottom, transparent 8%, rgba(0, 0, 0, 0.7) 24%, #000 40%);
+  filter: blur(10px) saturate(1.1);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 13%, rgba(0, 0, 0, 0.85) 24%, #000 32%);
+  mask-image: linear-gradient(to bottom, transparent 13%, rgba(0, 0, 0, 0.85) 24%, #000 32%);
 }
-/* вуаль цвета страницы: сверху лёгкая (фото видно), под текстом — плотнее */
+/* лёгкая вуаль цвета страницы: фото хорошо видно, под описанием чуть плотнее */
 .g-cover::before {
   content: ""; position: absolute; inset: 0; z-index: 1;
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--bg) 18%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 30%, transparent) 20%,
-    color-mix(in srgb, var(--bg) 62%, transparent) 42%,
-    color-mix(in srgb, var(--bg) 80%, transparent) 70%);
+    color-mix(in srgb, var(--bg) 6%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 12%, transparent) 16%,
+    color-mix(in srgb, var(--bg) 40%, transparent) 28%,
+    color-mix(in srgb, var(--bg) 52%, transparent) 50%,
+    color-mix(in srgb, var(--bg) 64%, transparent) 72%);
 }
-.g-cover::after { content: ""; position: absolute; inset: 0; z-index: 2; background: var(--grain); background-size: 210px 210px; opacity: 0.6; }
-/* имя и текст поверх фото: мягкий ореол цвета страницы вокруг букв */
-.g-has-cover .g-script { text-shadow: 0 0 18px color-mix(in srgb, var(--bg) 95%, transparent), 0 0 34px color-mix(in srgb, var(--glow-b) 90%, transparent); }
-.g-has-cover .g-lead, .g-has-cover .g-fact { text-shadow: 0 0 10px color-mix(in srgb, var(--bg) 90%, transparent); }
+.g-cover::after { content: ""; position: absolute; inset: 0; z-index: 2; background: var(--grain); background-size: 210px 210px; opacity: 0.5; }
+/* без белого ореола вокруг букв: имя на фото — чистым цветом */
+.g-has-cover .g-script { text-shadow: none; }
 @keyframes g-focus { from { filter: blur(18px) saturate(1.3); transform: scale(1.06); } to { filter: none; transform: none; } }
 
 .g-hero { position: relative; padding: 4px 20px 0; }
