@@ -464,12 +464,6 @@ html.tabbar-hidden .tabbar { display: none; }
 /* Тонкая линия над прайсом — как между описанием и адресом */
 .home-price::before { content: ""; display: block; height: 1px; background: var(--sep); margin: 6px 20px 18px; }
 
-/* Название бизнеса мелко в самом низу главной */
-.home-foot {
-  display: flex; align-items: center; justify-content: center; gap: 14px; padding: 26px 20px 10px;
-  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif; font-style: italic; font-weight: 500;
-  font-size: 21px; letter-spacing: 0.01em; color: var(--sub);
-}
 
 /* «Другие ваши мастера» — переключение между бизнесами */
 .other-ava { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; flex: none; background: var(--sep); }
@@ -510,3 +504,280 @@ html.toned .tabbar-on { color: var(--text); }
 .dlg-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .dlg-actions .btn { min-width: 96px; }
 html.toned .dlg { background: color-mix(in srgb, var(--bg) 88%, #ffffff); }
+
+/* =====================================================================================
+   «Розовый свет» — страница мастера для клиентов (палитра — web/palette.ts, выбирает мастер).
+   Пастельный фон, три мягких пятна света и зерно; имя мастера рукописным (Great Vibes),
+   заголовки и кнопки — Unbounded, текст — Onest, время/цены/подписи — JetBrains Mono.
+   ===================================================================================== */
+html.glow {
+  --f-head: "Unbounded", "Onest", system-ui, sans-serif;
+  --f-text: "Onest", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --f-script: "Great Vibes", "Onest", cursive;
+}
+html.glow body { font-family: var(--f-text); background: transparent; }
+
+/* свет и зерно позади экрана: только transform-анимации — дёшево даже на простых телефонах */
+.g-light { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.g-light i { position: absolute; display: block; border-radius: 50%; will-change: transform; animation: g-drift 16s ease-in-out infinite alternate; }
+.g-light i:nth-child(1) { left: -35vw; top: -12vh; width: 120vw; height: 120vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-a) 62%, transparent), transparent); }
+.g-light i:nth-child(2) { right: -40vw; top: 32vh; width: 110vw; height: 110vw; background: radial-gradient(closest-side, var(--glow-b), transparent); animation-duration: 19s; animation-direction: alternate-reverse; }
+.g-light i:nth-child(3) { left: -20vw; bottom: -30vh; width: 100vw; height: 100vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-c) 55%, transparent), transparent); animation-duration: 23s; }
+.g-light::after { content: ""; position: absolute; inset: 0; background-image: var(--grain); opacity: 0.6; }
+@keyframes g-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(6vw, 4vh, 0) scale(1.12); } }
+
+.g-page { padding-top: 18px; }
+.g-home .home-price::before { display: none; }
+.g-k { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--sub); font-weight: 400; }
+
+/* верхняя строка: адрес страницы и «запись открыта» с мигающей точкой */
+.g-meta { display: flex; justify-content: space-between; gap: 12px; padding: 6px 20px 10px; font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.05em; color: var(--sub); }
+.g-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--text); margin-right: 4px; vertical-align: 1px; box-shadow: 0 0 10px var(--glow-a); animation: g-blink 1.6s steps(2, jump-none) infinite; }
+.g-dot-off { background: var(--sub); box-shadow: none; animation: none; }
+@keyframes g-blink { 50% { opacity: 0.2; } }
+
+/* обложка — как фото на постере: скруглённая карточка с зерном, снизу растворяется */
+.g-cover { position: relative; margin: 0 12px; height: 300px; border-radius: 26px; overflow: hidden; background: var(--tile); box-shadow: 0 26px 50px -30px color-mix(in srgb, var(--text) 70%, transparent); }
+.g-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; animation: g-focus 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.g-cover::after { content: ""; position: absolute; inset: 0; background: var(--grain), linear-gradient(to bottom, transparent 50%, color-mix(in srgb, var(--bg) 75%, transparent) 96%); }
+@keyframes g-focus { from { filter: blur(18px) saturate(1.3); transform: scale(1.06); } to { filter: none; transform: none; } }
+
+.g-hero { position: relative; padding: 4px 20px 0; }
+.g-has-cover .g-hero { margin-top: -46px; }
+.g-script {
+  font-family: var(--f-script); font-weight: 400; line-height: 1.05; letter-spacing: 0; color: var(--text);
+  padding: 0.04em 0 0.1em; overflow-wrap: anywhere;
+  text-shadow: 0 0 26px color-mix(in srgb, var(--glow-b) 95%, transparent), 0 0 2px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+.g-hero h1.g-script { margin: 0; }
+.screen .g-hero h1 { animation: g-focus-text 1s 0.1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes g-focus-text { from { opacity: 0; filter: blur(10px); letter-spacing: 0.08em; } to { opacity: 1; filter: none; } }
+.g-lead { margin: 8px 0 0; color: var(--sub); font-size: 15px; line-height: 1.5; max-width: 38ch; white-space: pre-line; }
+
+/* адрес, телефон, ссылки — строки «подпись · значение» как выходные данные на постере */
+.g-facts { margin-top: 16px; border-top: 1px solid var(--sep); }
+.g-fact {
+  display: grid; grid-template-columns: 74px 1fr; align-items: baseline; gap: 10px; width: 100%; padding: 11px 0; border: 0;
+  border-bottom: 1px solid var(--sep); background: none; text-align: left; color: var(--text); font: inherit; font-size: 14px; cursor: pointer;
+  text-decoration: none;
+}
+.g-fact:active { opacity: 0.6; }
+.g-v { overflow-wrap: anywhere; }
+.g-links { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.g-link { border: 0; background: none; padding: 2px 0; font: inherit; color: var(--text); cursor: pointer; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, var(--text) 35%, transparent); }
+
+/* главная кнопка — тёмная «таблетка» со свечением; справа — ближайшее окно */
+.g-actions { display: flex; flex-direction: column; gap: 10px; padding: 20px 16px 22px; }
+.g-cta {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 60px; padding: 0 10px 0 24px;
+  border: 0; border-radius: 999px; background: var(--cta-bg); color: var(--cta-text); cursor: pointer;
+  font-family: var(--f-head); font-weight: 500; font-size: 16px; letter-spacing: 0.02em;
+  box-shadow: 0 16px 36px -14px color-mix(in srgb, var(--glow-a) 85%, transparent);
+  transition: transform 0.12s ease; animation: g-breathe 3.2s 1.2s ease-in-out infinite;
+}
+.g-cta > span:only-child { margin: 0 auto; }
+.g-cta:active { transform: scale(0.98); }
+.g-cta:disabled { opacity: 0.55; animation: none; cursor: default; }
+@keyframes g-breathe { 50% { box-shadow: 0 16px 46px -10px color-mix(in srgb, var(--glow-a) 100%, transparent); } }
+.g-cta-pill {
+  flex: none; font-family: var(--f-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.02em; white-space: nowrap;
+  padding: 9px 13px; border-radius: 99px; border: 1px solid color-mix(in srgb, var(--cta-text) 40%, transparent);
+}
+
+/* ближайшая запись — полоска-билет */
+.g-next {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; row-gap: 2px; width: 100%;
+  padding: 13px 16px; border: 1px dashed color-mix(in srgb, var(--text) 32%, transparent); border-radius: 20px;
+  background: var(--tile); color: var(--text); text-align: left; cursor: pointer;
+}
+.g-next .icon { grid-column: 2; grid-row: 1 / span 3; }
+.g-next-when { font-family: var(--f-head); font-weight: 500; font-size: 15px; }
+.g-next-what { font-size: 13px; color: var(--sub); }
+
+/* разделы: заголовок капсом с разрядкой */
+.g-sec { padding: 6px 0 20px; }
+.section.g-sec { margin: 0; }
+.g-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 20px 10px; }
+.g-sec-head h2 { margin: 0; font-family: var(--f-head); font-weight: 700; font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase; }
+.g-sec-head button { border: 0; background: none; padding: 6px 0; font-family: var(--f-mono); font-size: 12px; color: var(--sub); cursor: pointer; }
+
+/* список как трек-лист: номер · название · цена */
+.g-list { margin: 0 16px; border-top: 1px solid var(--sep); }
+.g-track {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 56px;
+  padding: 11px 4px; border: 0; border-bottom: 1px solid var(--sep); background: none; color: var(--text); text-align: left;
+  font: inherit; cursor: pointer; position: relative;
+}
+.g-track:active { background: var(--tile-press); }
+.g-track-static { cursor: default; }
+.g-track-static:active { background: none; }
+.g-track:has(.other-ava) { grid-template-columns: 40px minmax(0, 1fr) auto; }
+.g-n { font-family: var(--f-mono); font-size: 11px; color: var(--sub); font-variant-numeric: tabular-nums; }
+.g-track-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.g-track-title { font-family: var(--f-head); font-weight: 500; font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+.g-track-sub { font-size: 12.5px; color: var(--sub); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.g-price { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.g-page .price-row { padding: 11px 4px; border-radius: 0; }
+.g-page .price-row + .price-row::before { display: none; }
+
+/* лента работ: скруглённые карточки с зерном и номером */
+.g-home .home-works-row { padding: 0 16px; scroll-padding: 0 16px; gap: 10px; }
+.g-home .home-work { width: 132px; height: 172px; border-radius: 18px; position: relative; box-shadow: 0 14px 26px -18px color-mix(in srgb, var(--text) 80%, transparent); }
+.home-work::after, .g-grid .gallery-item::after { content: ""; position: absolute; inset: 0; background: var(--grain); pointer-events: none; }
+.g-work-n { position: absolute; left: 9px; bottom: 7px; z-index: 1; font-family: var(--f-mono); font-size: 10.5px; color: #fff; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
+.g-grid { gap: 6px; padding: 0 12px; }
+.g-grid .gallery-item { border-radius: 14px; }
+
+.g-admin { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 8px; }
+.g-admin button {
+  display: flex; gap: 10px; align-items: baseline; width: 100%; padding: 13px 14px; border-radius: 16px; cursor: pointer; text-align: left;
+  border: 1px dashed color-mix(in srgb, var(--text) 35%, transparent); background: none; color: var(--text); font-size: 14px;
+}
+
+/* подвал: имя рукописным + штрихкод */
+.g-foot { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 20px 14px; text-align: center; }
+.g-foot-name { font-size: 38px; color: var(--sub); }
+.g-foot-row { display: flex; align-items: flex-end; gap: 12px; text-align: left; line-height: 1.35; }
+.g-barcode { display: inline-flex; gap: 2px; align-items: stretch; flex: none; }
+.g-barcode i { display: block; background: var(--text); }
+
+/* шапка шага записи */
+.g-head { padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 6px; }
+.g-title { margin: 0; font-family: var(--f-head); font-weight: 700; font-size: 30px; line-height: 1.05; letter-spacing: -0.03em; }
+.g-head-sub { margin: 2px 0 0; font-family: var(--f-mono); font-size: 12px; line-height: 1.5; color: var(--sub); }
+
+/* дни: моно-подпись и крупное число, выбранный — тёмный со свечением */
+.g-days { gap: 6px; padding: 0 16px 6px; }
+.g-days .day {
+  min-width: 56px; padding: 8px 6px 9px; border-radius: 18px; background: none; color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent); transition: background 0.2s, color 0.2s;
+}
+.g-days .day-wd { font-family: var(--f-mono); font-size: 10.5px; text-transform: none; letter-spacing: 0.03em; color: var(--sub); }
+.g-days .day-n { font-family: var(--f-head); font-weight: 500; font-size: 17px; }
+.g-days .day-on { background: var(--text); color: var(--btn-text); border-color: transparent; box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--glow-a) 90%, transparent); }
+.g-days .day-on .day-wd { color: color-mix(in srgb, var(--btn-text) 80%, transparent); }
+
+/* время — трек-лист «стороны А»: утро / день / вечер */
+.g-tracks { padding: 4px 16px 0; animation: fade 0.3s both; }
+.g-side-title { display: flex; justify-content: space-between; padding: 14px 4px 6px; border-bottom: 1px solid var(--sep); }
+.g-page .g-slot {
+  display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 10px; width: 100%; height: 50px; padding: 0 4px;
+  border: 0; border-bottom: 1px solid var(--sep); border-radius: 0; background: none; color: var(--text); text-align: left;
+  font-weight: 400; transition: background 0.15s, border-radius 0.15s, padding 0.15s;
+}
+.g-page .g-slot:active { background: var(--tile-press); color: var(--text); }
+.g-slot-time { font-family: var(--f-head); font-weight: 500; font-size: 16px; font-variant-numeric: tabular-nums; }
+.g-slot-len { font-family: var(--f-mono); font-size: 11px; color: var(--sub); }
+.g-page .g-slot.g-slot-on {
+  background: var(--text); color: var(--btn-text); border-radius: 25px; padding: 0 14px; border-bottom-color: transparent;
+  box-shadow: 0 0 40px color-mix(in srgb, var(--glow-a) 80%, transparent);
+}
+.g-slot-on .g-n, .g-slot-on .g-slot-len { color: color-mix(in srgb, var(--btn-text) 80%, transparent); }
+
+/* корешок записи перед контактами */
+.g-stub { margin: 0 16px 18px; padding: 2px 16px; border-radius: 22px; background: var(--tile); border: 1px dashed color-mix(in srgb, var(--text) 26%, transparent); }
+.g-stub-row {
+  display: grid; grid-template-columns: 84px 1fr auto; align-items: baseline; gap: 8px; width: 100%; padding: 12px 0; font-size: 14px;
+  border: 0; border-bottom: 1px dashed var(--sep); background: none; color: var(--text); text-align: left; font-family: inherit;
+}
+.g-stub-row:last-child { border-bottom: 0; }
+.g-stub-time { cursor: pointer; }
+.g-stub-time b { font-family: var(--f-head); font-weight: 500; }
+.g-stub-edit { font-family: var(--f-mono); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; color: var(--sub); }
+
+/* поля: подпись моно, ввод — по линии, как на бланке */
+.g-form { padding: 0 20px 24px; gap: 18px; }
+.g-page .field-label { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.05em; color: var(--sub); }
+.g-page .field input {
+  border: 0; border-bottom: 1.5px solid color-mix(in srgb, var(--text) 32%, transparent); border-radius: 0; background: transparent;
+  padding: 9px 0 10px; font-size: 17px;
+}
+.g-page .field textarea { border: 1.5px solid color-mix(in srgb, var(--text) 24%, transparent); border-radius: 16px; background: var(--tile); padding: 10px 12px; }
+.g-page .field input:focus { border-bottom-color: var(--text); }
+.g-page .field textarea:focus { border-color: var(--text); }
+.g-page .field-bad input { border-bottom-color: var(--danger); }
+.g-chip {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-height: 38px; padding: 0 14px; margin-top: -6px;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 99px; background: var(--tile); color: var(--text);
+  font-family: var(--f-mono); font-size: 12px; cursor: pointer;
+}
+
+/* нижняя кнопка вне Telegram — в стиле страницы */
+html.glow .mainbtn-wrap .btn { border-radius: 999px; font-family: var(--f-head); font-weight: 500; font-size: 15px; letter-spacing: 0.02em; padding: 18px; }
+
+/* «Вы записаны»: постер-сторис */
+.g-poster {
+  position: relative; overflow: hidden; margin: 0 16px 14px; padding: 18px 18px 16px; border-radius: 28px; min-height: 440px;
+  display: flex; flex-direction: column;
+  background:
+    radial-gradient(120% 70% at 0% 12%, color-mix(in srgb, var(--glow-a) 70%, transparent), transparent 62%),
+    radial-gradient(90% 60% at 100% 88%, var(--glow-b), transparent 66%),
+    var(--bg);
+  box-shadow: 0 34px 60px -30px color-mix(in srgb, var(--text) 75%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
+  animation: g-poster-in 0.8s cubic-bezier(0.2, 0.9, 0.25, 1.05) both;
+}
+.g-poster::after { content: ""; position: absolute; inset: 0; background: var(--grain); pointer-events: none; }
+.g-poster > * { position: relative; z-index: 1; }
+@keyframes g-poster-in { from { opacity: 0; transform: translateY(26px) rotate(-1.5deg) scale(0.97); } to { opacity: 1; transform: none; } }
+.g-poster-meta { display: flex; justify-content: space-between; gap: 12px; font-family: var(--f-mono); font-size: 11px; color: var(--sub); }
+.g-poster-name { margin-top: 34px; animation: g-focus-text 1.4s 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.g-poster-when { display: flex; flex-direction: column; margin-top: 8px; font-family: var(--f-head); font-weight: 700; line-height: 0.95; letter-spacing: -0.045em; text-transform: uppercase; }
+.g-poster-when span:first-child { font-size: clamp(24px, 8.4vw, 40px); }
+.g-poster-when span:last-child { font-size: clamp(44px, 16vw, 68px); }
+.g-poster-what { display: flex; flex-direction: column; gap: 3px; margin-top: 16px; font-family: var(--f-mono); font-size: 12px; line-height: 1.45; color: var(--sub); }
+.g-poster-sign { margin-top: auto; padding-top: 10px; align-self: flex-end; font-size: 32px; }
+.g-poster-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-top: 10px; }
+.g-poster-foot .g-k { text-align: right; line-height: 1.4; }
+.g-note { margin: 0; padding: 0 22px 10px; text-align: center; font-family: var(--f-mono); font-size: 11.5px; line-height: 1.6; color: var(--sub); }
+.g-note-strong { font-family: var(--f-text); font-size: 14px; color: var(--text); white-space: pre-line; }
+.g-done-actions { display: flex; flex-direction: column; gap: 10px; padding: 6px 16px 16px; }
+.g-ghost {
+  min-height: 52px; border-radius: 999px; border: 1.5px solid var(--text); background: none; color: var(--text); cursor: pointer;
+  font-family: var(--f-head); font-weight: 500; font-size: 14px; letter-spacing: 0.02em;
+}
+.g-ghost:active { background: var(--tile); }
+
+/* «Мои записи»: билеты с отрывным корешком */
+.g-ticket { position: relative; display: grid; grid-template-columns: 78px 1fr; margin: 0 16px 10px; border-radius: 22px; background: var(--tile); overflow: hidden; }
+.g-ticket-date { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-right: 2px dashed var(--sep); padding: 12px 0; }
+.g-ticket-date b { font-family: var(--f-head); font-weight: 700; font-size: 30px; line-height: 1; }
+.g-ticket-date span { font-family: var(--f-mono); font-size: 11px; color: var(--sub); }
+.g-ticket-main { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px 10px; min-width: 0; }
+.g-ticket-time { font-family: var(--f-head); font-weight: 500; font-size: 16px; }
+.g-ticket-what { font-size: 13px; color: var(--sub); overflow-wrap: anywhere; }
+.g-ticket-cancel {
+  align-self: flex-start; min-height: 34px; padding: 0; margin-top: 2px; border: 0; background: none; cursor: pointer;
+  font-family: var(--f-mono); font-size: 12px; color: var(--text); text-decoration: underline; text-underline-offset: 4px;
+}
+.g-sec .g-note { text-align: left; padding: 4px 20px 0; }
+.g-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 20px 10px; text-align: center; }
+.g-empty .g-script { font-size: 48px; }
+.g-empty p { margin: 0 0 12px; color: var(--sub); max-width: 30ch; }
+.g-empty .g-cta { max-width: 320px; }
+
+/* нижняя панель: моно-подписи, у текущей — светящаяся точка */
+.g-tabbar { box-shadow: none; border-top-color: var(--sep); background: color-mix(in srgb, var(--bg) 80%, transparent); }
+.g-tabbar .tabbar-item { flex-direction: row; justify-content: center; gap: 6px; min-height: 44px; font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.02em; color: var(--sub); }
+.g-tabbar .tabbar-on { color: var(--text); font-weight: 500; }
+.g-tab-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0; transform: scale(0.4); transition: opacity 0.2s, transform 0.25s; flex: none; }
+.tabbar-on .g-tab-dot { opacity: 1; transform: none; box-shadow: 0 0 8px var(--glow-a); }
+
+/* панель мастера в цвете страницы: спокойнее — без света и зерна, заголовки Unbounded */
+html.glow .page-title, html.glow .admin-name { font-family: var(--f-head); font-weight: 500; letter-spacing: -0.02em; }
+html.glow .page-title { font-size: 21px; }
+
+/* выбор цвета страницы в настройках */
+.swatches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 6px; padding: 14px 10px 8px; }
+.swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; border: 0; background: none; color: var(--text); cursor: pointer; padding: 2px 0; min-width: 0; }
+.swatch-dot { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; color: #fff; transition: transform 0.15s; }
+.swatch-on .swatch-dot { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--text) !important; }
+.swatch-on .swatch-dot .icon { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+.swatch:active .swatch-dot { transform: scale(0.92); }
+.swatch-label { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.swatch-own { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px 14px; }
+.swatch-own-pick { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.swatch-own-pick input { width: 46px; height: 46px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.swatch-own-pick input::-webkit-color-swatch-wrapper { padding: 0; }
+.swatch-own-pick input::-webkit-color-swatch { border: 0; border-radius: 50%; }

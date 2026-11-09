@@ -25,6 +25,8 @@ export interface Settings {
   fields: Field[];
   bannerFileId?: string;
   bannerColor?: string;
+  /** цвет страницы: rose | lilac | mint | amber | sky | graphite | banner | #rrggbb */
+  palette?: string;
 }
 
 export interface Service {
@@ -65,6 +67,7 @@ export interface Boot {
   client: { name: string; phone: string } | null;
   next?: { starts_at: string; service_title: string } | null;
   others?: { id: number; slug: string; name: string; bannerFileId: string }[];
+  share?: { tg: string; max: string | null } | null;
   blocked?: boolean;
   adminOf: { id: number; slug: string; name: string; role: string; emoji: string }[];
   templates: { id: string; title: string; emoji: string; pitch: string }[];

@@ -11,7 +11,7 @@ test("MAX: клиент открывает бизнес по ссылке, за�
   await checkScreen(page, info, "M1 главная в MAX", errors);
 
   await page.locator(".tabbar-item", { hasText: "Запись" }).click();
-  await page.locator(".cell-tap").first().click();
+  await page.locator(".g-row").first().click();
   await page.locator(".day").nth(2).click();
   await settle(page, 400);
   await page.locator(".slot").first().click();

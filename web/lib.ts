@@ -193,7 +193,7 @@ export function addDays(date: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export const rub = (n: number, from = false) => (n === 0 ? "бесплатно" : `${from ? "от " : ""}${n.toLocaleString("ru-RU")} ₽`);
+export const rub = (n: number, from = false) => (n === 0 ? "бесплатно" : `${from ? "от " : ""}${n.toLocaleString("ru-RU")}\u00a0₽`);
 
 export function duration(min: number): string {
   const h = Math.floor(min / 60);
@@ -290,7 +290,7 @@ export const RU_TIMEZONES: [string, string][] = [
 ];
 
 /** Палитра бизнеса от цвета баннера: фон — цвет баннера, остальное подбирается под контраст. */
-export type Theme = { tone: string; light: boolean; vars: Record<string, string>; btn: string; btnText: string };
+export type Theme = { tone: string; light: boolean; vars: Record<string, string>; btn: string; btnText: string; glow?: import("./palette").Glow };
 
 export function makeTheme(tone: string): Theme {
   const light = isLight(tone);
@@ -321,7 +321,7 @@ export function makeTheme(tone: string): Theme {
   return { tone, light, vars, btn, btnText };
 }
 
-const THEME_KEYS = Object.keys(makeTheme("#808080").vars);
+const THEME_KEYS = [...Object.keys(makeTheme("#808080").vars), "--glow-a", "--glow-b", "--glow-c", "--grain"];
 
 /** Применить палитру ко всему приложению (null — вернуть тему Telegram). */
 export function applyTheme(theme: Theme | null, accent?: string) {
@@ -330,6 +330,8 @@ export function applyTheme(theme: Theme | null, accent?: string) {
   if (theme) for (const [k, v] of Object.entries(theme.vars)) st.setProperty(k, v);
   else st.setProperty("--accent", accent || "var(--btn)");
   document.documentElement.classList.toggle("toned", !!theme);
+  document.documentElement.classList.toggle("glow", !!theme?.glow);
+  document.documentElement.classList.toggle("glow-dark", !!theme?.glow?.dark);
   try {
     WA?.setBackgroundColor?.(theme ? theme.tone : "secondary_bg_color");
     WA?.setHeaderColor?.(theme ? theme.tone : "secondary_bg_color");

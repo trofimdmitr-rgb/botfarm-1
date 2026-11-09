@@ -22,6 +22,7 @@ import {
   shareLink,
   todayIn,
 } from "./lib";
+import { GLOWS } from "./palette";
 import type { Booking, PublicBusiness, Service, Settings, Staff } from "./types";
 import { StatusBadge } from "./client";
 import {
@@ -475,6 +476,15 @@ function SettingsEditor({ ov, reload, toast, onSaved }: Ctx & { onSaved: () => v
     <>
       <h2 className="page-title">Настройки</h2>
       <BannerEditor businessId={b.id} fileId={s.bannerFileId} onChange={(fileId) => { setS({ ...s, bannerFileId: fileId }); reload(); }} />
+      <PaletteEditor
+        businessId={b.id}
+        value={s.palette || "rose"}
+        hasBanner={!!s.bannerFileId}
+        onChange={(palette) => {
+          setS({ ...s, palette });
+          reload();
+        }}
+      />
       <Section title="Карточка бизнеса">
         <div className="form">
           <div className="form-row">
@@ -484,10 +494,6 @@ function SettingsEditor({ ov, reload, toast, onSaved }: Ctx & { onSaved: () => v
           <Field label="Приветствие в боте" value={s.welcome} onChange={(v) => set("welcome", v)} multiline />
           <Field label="Адрес" value={s.address} onChange={(v) => set("address", v)} placeholder="Самара, ул. Ленинградская, 1" />
           <Field label="Телефон для связи" value={s.contactPhone} onChange={(v) => set("contactPhone", v)} inputMode="tel" />
-          <label className="field">
-            <span className="field-label">Цвет кнопок</span>
-            <input type="color" value={s.accent} onChange={(e) => set("accent", e.target.value)} />
-          </label>
           <Field
             label="Текст после записи"
             value={s.afterBookingText}
@@ -883,7 +889,7 @@ function BannerEditor(p: { businessId: number; fileId?: string; onChange: (fileI
     }
   };
   return (
-    <Section title="Баннер на главной" footer="Горизонтальное фото. Верх будет чётким, ниже плавно размоется и перейдёт в основной цвет фото — в него же окрасится фон страницы.">
+    <Section title="Обложка на главной" footer="Горизонтальное фото — шапка вашей страницы. Снизу оно мягко растворится в цвете страницы.">
       {url && (
         <div className="banner-preview">
           <img src={url} alt="" />
@@ -906,6 +912,62 @@ function BannerEditor(p: { businessId: number; fileId?: string; onChange: (fileI
             Убрать
           </button>
         )}
+      </div>
+    </Section>
+  );
+}
+
+/** Цвет страницы: готовые «свечения», цвет из обложки или свой. Применяется сразу. */
+function PaletteEditor(p: { businessId: number; value: string; hasBanner: boolean; onChange: (palette: string) => void }) {
+  const custom = /^#[0-9a-f]{6}$/i.test(p.value);
+  const [own, setOwn] = useState(custom ? p.value : "#e8442c");
+  const [busy, setBusy] = useState("");
+  const save = async (palette: string) => {
+    if (busy) return;
+    setBusy(palette);
+    try {
+      await api("admin.saveSettings", { businessId: p.businessId, settings: { palette } });
+      haptic("success");
+      p.onChange(palette);
+    } catch (e: any) {
+      await alertMsg(e.message);
+    } finally {
+      setBusy("");
+    }
+  };
+  const options = [...GLOWS, ...(p.hasBanner ? [{ ...GLOWS[0], id: "banner", label: "Из обложки" }] : [])];
+  return (
+    <Section title="Цвет страницы" footer="Фон, кнопки и мягкое свечение на странице для клиентов. Нажмите — применится сразу.">
+      <div className="swatches">
+        {options.map((g) => (
+          <button
+            key={g.id}
+            className={`swatch ${p.value === g.id ? "swatch-on" : ""}`}
+            onClick={() => save(g.id)}
+            aria-pressed={p.value === g.id}
+          >
+            <span
+              className="swatch-dot"
+              style={
+                g.id === "banner"
+                  ? { background: "conic-gradient(from 90deg, #f9c6dc, #c8dcfa, #c4ecdc, #fbdcae, #f9c6dc)" }
+                  : { background: `radial-gradient(circle at 30% 30%, ${g.a}, transparent 60%), ${g.bg}`, boxShadow: `inset 0 0 0 1px ${g.ink}33` }
+              }
+            >
+              {p.value === g.id && <Icon name="check" size={16} />}
+            </span>
+            <span className="swatch-label">{busy === g.id ? "…" : g.label}</span>
+          </button>
+        ))}
+      </div>
+      <div className="swatch-own">
+        <label className="swatch-own-pick">
+          <input type="color" value={own} onChange={(e) => setOwn(e.target.value)} aria-label="Свой цвет" />
+          <span>Свой цвет</span>
+        </label>
+        <button className={`btn btn-small ${custom && p.value.toLowerCase() === own.toLowerCase() ? "btn-secondary" : "btn-primary"}`} onClick={() => save(own)}>
+          {custom && p.value.toLowerCase() === own.toLowerCase() ? "Применён" : "Применить"}
+        </button>
       </div>
     </Section>
   );

@@ -2,13 +2,27 @@ import { StrictMode, useEffect, useLayoutEffect, useMemo, useState } from "react
 import { createRoot } from "react-dom/client";
 import { AdminPanel } from "./admin";
 import { BookFlow, BusinessHome, ClientTabBar, type ClientTab, MyBookings, PortfolioScreen } from "./client";
-import { api, applyTheme, enableDragScroll, ensureDevAuth, inMax, inTelegram, makeTheme, ThemeContext, urlParams, useBannerTone, WA } from "./lib";
+import { api, applyTheme, enableDragScroll, ensureDevAuth, inMax, inTelegram, ThemeContext, urlParams, useBannerTone, WA } from "./lib";
+import { glowFor, glowTheme } from "./palette";
 import { Landing, SuperPanel } from "./platform";
 import type { Boot } from "./types";
 import { ErrorBox, Spinner } from "./ui";
-// изящный курсив для подписи внизу главной — встроен в сборку (только кириллица и латиница, ~40 КБ)
-import "@fontsource/cormorant-garamond/cyrillic-500-italic.css";
-import "@fontsource/cormorant-garamond/latin-500-italic.css";
+// Шрифты «Розового света» встроены в сборку (кириллица + латиница; браузер качает только нужные начертания):
+// Unbounded — заголовки и кнопки, Onest — текст, JetBrains Mono — время, цены, подписи, Great Vibes — имя мастера и билет.
+import "@fontsource/unbounded/cyrillic-500.css";
+import "@fontsource/unbounded/latin-500.css";
+import "@fontsource/unbounded/cyrillic-700.css";
+import "@fontsource/unbounded/latin-700.css";
+import "@fontsource/onest/cyrillic-400.css";
+import "@fontsource/onest/latin-400.css";
+import "@fontsource/onest/cyrillic-600.css";
+import "@fontsource/onest/latin-600.css";
+import "@fontsource/jetbrains-mono/cyrillic-400.css";
+import "@fontsource/jetbrains-mono/latin-400.css";
+import "@fontsource/jetbrains-mono/cyrillic-500.css";
+import "@fontsource/jetbrains-mono/latin-500.css";
+import "@fontsource/great-vibes/cyrillic-400.css";
+import "@fontsource/great-vibes/latin-400.css";
 import "./styles.css";
 
 type Route =
@@ -19,7 +33,7 @@ type Route =
   | { name: "admin"; businessId: number }
   | { name: "super" };
 
-type ThemeBiz = { id: number; settings: { accent?: string; bannerFileId?: string; bannerColor?: string } };
+type ThemeBiz = { id: number; settings: { accent?: string; bannerFileId?: string; bannerColor?: string; palette?: string } };
 
 function initialRoute(boot: Boot): Route {
   const view = urlParams.get("view");
@@ -65,8 +79,10 @@ function App() {
           ? adminBiz
           : null
         : (boot?.business ?? null);
-  const tone = useBannerTone(themeBiz);
-  const theme = useMemo(() => (tone ? makeTheme(tone) : null), [tone]);
+  // палитра «свечения», которую выбрал мастер (по умолчанию — розовая); «из обложки» — от цвета баннера
+  const tone = useBannerTone(themeBiz?.settings.palette === "banner" ? themeBiz : null);
+  const palette = themeBiz ? themeBiz.settings.palette || "rose" : "";
+  const theme = useMemo(() => (palette ? glowTheme(glowFor(palette, tone)) : null), [palette, tone]);
   useLayoutEffect(() => applyTheme(theme, themeBiz?.settings.accent), [theme, themeBiz?.settings.accent]);
 
   if (error) return <ErrorBox error={error} onRetry={() => load().then((b) => b && setStack([initialRoute(b)]))} />;
@@ -100,6 +116,14 @@ function App() {
       </div>
       {/* закреплённый мягкий переход под шапкой Telegram: при прокрутке содержимое уходит в цвет шапки без шва */}
       {theme && <div className="top-fade" aria-hidden />}
+      {/* мягкий свет и зерно за экранами клиента (в панели мастера — спокойный фон без них) */}
+      {theme && showTabs && (
+        <div className="g-light" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </div>
+      )}
       {showTabs && <ClientTabBar active={clientTab} hasWorks={biz.portfolio.length > 0} onGo={goTab} />}
     </ThemeContext.Provider>
   );

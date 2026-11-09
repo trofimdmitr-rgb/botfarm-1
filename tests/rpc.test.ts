@@ -142,6 +142,18 @@ describe("клиентский путь", () => {
     await expect(call("admin.bannerSet", { businessId: biz.id, imageBase64: "x" }, as(300))).rejects.toThrow("Нет доступа");
   });
 
+  it("цвет страницы: готовая палитра или свой цвет, мусор не сохраняется; клиент получает ссылку «поделиться»", async () => {
+    const first: any = await call("boot", {}, as(302, "nogti-anny"));
+    expect(first.share.tg).toContain("nogti-anny");
+    await call("admin.saveSettings", { businessId: biz.id, settings: { palette: "mint" } });
+    expect(((await call("boot", {}, as(302, "nogti-anny"))) as any).business.settings.palette).toBe("mint");
+    await call("admin.saveSettings", { businessId: biz.id, settings: { palette: "#3366ff" } });
+    expect(((await call("boot", {}, as(302, "nogti-anny"))) as any).business.settings.palette).toBe("#3366ff");
+    await call("admin.saveSettings", { businessId: biz.id, settings: { palette: "url(javascript:1)" } });
+    expect(((await call("boot", {}, as(302, "nogti-anny"))) as any).business.settings.palette).toBe("#3366ff");
+    await expect(call("admin.saveSettings", { businessId: biz.id, settings: { palette: "rose" } }, as(302))).rejects.toThrow("Нет доступа");
+  });
+
   it("заблокированный бизнес не показывается клиентам", async () => {
     await call("super.setStatus", { businessId: biz.id, status: "blocked" });
     const boot: any = await call("boot", {}, as(301, "nogti-anny"));

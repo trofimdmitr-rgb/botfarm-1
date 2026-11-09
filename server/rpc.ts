@@ -120,6 +120,10 @@ async function boot(ctx: Ctx, p: P) {
     client: client ?? null,
     next: next ?? null,
     others,
+    // ссылки «поделиться» для клиента: позвать подругу к этому же мастеру
+    share: business
+      ? { tg: clientLink(business.slug), max: config.maxBotToken && config.maxBotName ? maxClientLink(business.slug) : null }
+      : null,
     adminOf: adminOf.map((b) => ({ id: b.id, slug: b.slug, name: b.name, role: b.role, emoji: b.settings.emoji })),
     templates: tplList(),
   };
@@ -375,9 +379,13 @@ async function removeTimeOff(ctx: BizCtx, p: P) {
   return { ok: true };
 }
 
+/** Готовые палитры страницы мастера; кроме них — «из обложки» и свой цвет #rrggbb. */
+export const PALETTES = ["rose", "lilac", "mint", "amber", "sky", "graphite", "banner"];
+const isPalette = (v: unknown) => typeof v === "string" && (PALETTES.includes(v) || /^#[0-9a-f]{6}$/i.test(v));
+
 const SETTINGS_KEYS: (keyof BusinessSettings)[] = [
   "emoji", "accent", "description", "address", "contactPhone", "links", "welcome", "afterBookingText", "labels",
-  "stepMin", "minLeadMin", "maxDaysAhead", "cancelHours", "chooseStaff", "requirePhone", "remind2h", "fields",
+  "stepMin", "minLeadMin", "maxDaysAhead", "cancelHours", "chooseStaff", "requirePhone", "remind2h", "fields", "palette",
 ];
 
 async function saveSettings(ctx: BizCtx, p: P) {
@@ -405,6 +413,7 @@ async function saveSettings(ctx: BizCtx, p: P) {
     if (k in settings) settings[k] = str(settings[k], 1000);
   }
   if (settings.accent && !/^#[0-9a-f]{6}$/i.test(settings.accent)) delete settings.accent;
+  if ("palette" in settings && !isPalette(settings.palette)) delete settings.palette;
   const b = await store.updateBusiness(db(), ctx.business.id, {
     name: p.name ? str(p.name, 80) : undefined,
     timezone: p.timezone ? str(p.timezone, 60) : undefined,

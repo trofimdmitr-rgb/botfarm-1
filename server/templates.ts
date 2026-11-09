@@ -29,6 +29,8 @@ export interface BusinessSettings {
   bannerFileId: string;
   /** Преобладающий цвет баннера (#rrggbb) — в него переходит размытие и фон главной */
   bannerColor: string;
+  /** Цвет страницы («свечение»): rose | lilac | mint | amber | sky | graphite | banner | #rrggbb */
+  palette: string;
 }
 
 export interface Template {
@@ -64,6 +66,7 @@ const baseSettings = (over: Partial<BusinessSettings>): BusinessSettings => ({
   fields: [],
   bannerFileId: "",
   bannerColor: "",
+  palette: "rose",
   ...over,
 });
 
@@ -76,6 +79,7 @@ export const TEMPLATES: Template[] = [
     settings: baseSettings({
       emoji: "💅",
       accent: "#d6457b",
+      palette: "rose",
       description: "Маникюр, педикюр и брови. Запись онлайн 24/7 — выберите услугу и свободное окошко.",
       welcome: "Привет! Я мастер ногтевого сервиса. Выберите услугу и удобное время — я пришлю напоминание накануне.",
       afterBookingText: "Если планы изменятся — отмените запись в «Мои записи», чтобы окошко досталось другому.",
@@ -99,6 +103,7 @@ export const TEMPLATES: Template[] = [
     settings: baseSettings({
       emoji: "💈",
       accent: "#b7791f",
+      palette: "graphite",
       description: "Мужские стрижки и оформление бороды. Выберите мастера и удобное время.",
       welcome: "Добро пожаловать! Выберите услугу, мастера и время — без звонков и ожидания.",
       chooseStaff: true,
@@ -127,6 +132,7 @@ export const TEMPLATES: Template[] = [
     settings: baseSettings({
       emoji: "🎓",
       accent: "#4f46e5",
+      palette: "sky",
       description: "Индивидуальные занятия онлайн и очно. Первое пробное занятие — бесплатно.",
       welcome: "Здравствуйте! Выберите формат занятия и удобное время. Ссылку на созвон пришлю перед началом.",
       afterBookingText: "Занятие проходит онлайн. Ссылку на созвон пришлю в этот чат перед началом.",
@@ -154,6 +160,7 @@ export const TEMPLATES: Template[] = [
     settings: baseSettings({
       emoji: "🧘",
       accent: "#0f9d76",
+      palette: "lilac",
       description: "Массаж и персональные тренировки. Выберите сеанс и удобное время.",
       welcome: "Здравствуйте! Запишитесь на сеанс в удобное время — напомню накануне.",
       labels: { staff: "Специалист", staffPlural: "Специалисты", service: "Сеанс" },
@@ -177,6 +184,7 @@ export const TEMPLATES: Template[] = [
     settings: baseSettings({
       emoji: "🚗",
       accent: "#e8590c",
+      palette: "amber",
       description: "Шиномонтаж, мойка, детейлинг и обслуживание. Запись без очереди и звонков.",
       welcome: "Здравствуйте! Запишите авто на удобное время — без очереди и звонков.",
       labels: { staff: "Бокс", staffPlural: "Боксы", service: "Работа" },

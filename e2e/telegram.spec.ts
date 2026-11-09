@@ -38,7 +38,7 @@ for (const theme of ["light", "dark"] as Theme[]) {
       // запись через вкладку
       await page.locator(".tabbar-item", { hasText: "Запись" }).click();
       await checkScreen(page, info, "05 запись — услуга", errors);
-      await page.locator(".cell-tap").first().click();
+      await page.locator(".g-row").first().click();
       await expect(page.locator(".slot").first()).toBeVisible();
       await checkScreen(page, info, "06 запись — время", errors);
       // второй день, первое свободное время
@@ -89,13 +89,13 @@ for (const theme of ["light", "dark"] as Theme[]) {
       await checkScreen(page, info, "21 главная без баннера", errors);
       // у барбершопа несколько мастеров: услуга из прайса → выбор мастера → время
       await page.locator(".price-row").first().click();
-      await expect(page.locator(".cell-tap", { hasText: "Любой свободный" })).toBeVisible();
+      await expect(page.locator(".g-row", { hasText: "Любой свободный" })).toBeVisible();
       await checkScreen(page, info, "22 выбор мастера", errors);
-      await page.locator(".cell-tap", { hasText: "Алексей" }).click();
+      await page.locator(".g-row", { hasText: "Алексей" }).click();
       await expect(page.locator(".slot, .empty").first()).toBeVisible();
       await checkScreen(page, info, "23 время у мастера", errors);
       expect(await tg.clickBack(page), "назад к выбору мастера").toBe(true);
-      await expect(page.locator(".cell-tap", { hasText: "Любой свободный" })).toBeVisible();
+      await expect(page.locator(".g-row", { hasText: "Любой свободный" })).toBeVisible();
       expect(await tg.clickBack(page), "назад на главную").toBe(true);
       await expect(page.locator("h1")).toHaveText("Барбершоп Борода");
     });

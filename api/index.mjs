@@ -536,6 +536,7 @@ var init_templates = __esm({
       fields: [],
       bannerFileId: "",
       bannerColor: "",
+      palette: "rose",
       ...over
     });
     TEMPLATES = [
@@ -547,6 +548,7 @@ var init_templates = __esm({
         settings: baseSettings({
           emoji: "\u{1F485}",
           accent: "#d6457b",
+          palette: "rose",
           description: "\u041C\u0430\u043D\u0438\u043A\u044E\u0440, \u043F\u0435\u0434\u0438\u043A\u044E\u0440 \u0438 \u0431\u0440\u043E\u0432\u0438. \u0417\u0430\u043F\u0438\u0441\u044C \u043E\u043D\u043B\u0430\u0439\u043D 24/7 \u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443 \u0438 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E\u0435 \u043E\u043A\u043E\u0448\u043A\u043E.",
           welcome: "\u041F\u0440\u0438\u0432\u0435\u0442! \u042F \u043C\u0430\u0441\u0442\u0435\u0440 \u043D\u043E\u0433\u0442\u0435\u0432\u043E\u0433\u043E \u0441\u0435\u0440\u0432\u0438\u0441\u0430. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u044F \u043F\u0440\u0438\u0448\u043B\u044E \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435 \u043D\u0430\u043A\u0430\u043D\u0443\u043D\u0435.",
           afterBookingText: "\u0415\u0441\u043B\u0438 \u043F\u043B\u0430\u043D\u044B \u0438\u0437\u043C\u0435\u043D\u044F\u0442\u0441\u044F \u2014 \u043E\u0442\u043C\u0435\u043D\u0438\u0442\u0435 \u0437\u0430\u043F\u0438\u0441\u044C \u0432 \xAB\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438\xBB, \u0447\u0442\u043E\u0431\u044B \u043E\u043A\u043E\u0448\u043A\u043E \u0434\u043E\u0441\u0442\u0430\u043B\u043E\u0441\u044C \u0434\u0440\u0443\u0433\u043E\u043C\u0443.",
@@ -570,6 +572,7 @@ var init_templates = __esm({
         settings: baseSettings({
           emoji: "\u{1F488}",
           accent: "#b7791f",
+          palette: "graphite",
           description: "\u041C\u0443\u0436\u0441\u043A\u0438\u0435 \u0441\u0442\u0440\u0438\u0436\u043A\u0438 \u0438 \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u0435 \u0431\u043E\u0440\u043E\u0434\u044B. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F.",
           welcome: "\u0414\u043E\u0431\u0440\u043E \u043F\u043E\u0436\u0430\u043B\u043E\u0432\u0430\u0442\u044C! \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0441\u043B\u0443\u0433\u0443, \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \u0438 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0435\u0437 \u0437\u0432\u043E\u043D\u043A\u043E\u0432 \u0438 \u043E\u0436\u0438\u0434\u0430\u043D\u0438\u044F.",
           chooseStaff: true,
@@ -598,6 +601,7 @@ var init_templates = __esm({
         settings: baseSettings({
           emoji: "\u{1F393}",
           accent: "#4f46e5",
+          palette: "sky",
           description: "\u0418\u043D\u0434\u0438\u0432\u0438\u0434\u0443\u0430\u043B\u044C\u043D\u044B\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u044F \u043E\u043D\u043B\u0430\u0439\u043D \u0438 \u043E\u0447\u043D\u043E. \u041F\u0435\u0440\u0432\u043E\u0435 \u043F\u0440\u043E\u0431\u043D\u043E\u0435 \u0437\u0430\u043D\u044F\u0442\u0438\u0435 \u2014 \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E.",
           welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0444\u043E\u0440\u043C\u0430\u0442 \u0437\u0430\u043D\u044F\u0442\u0438\u044F \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F. \u0421\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u0441\u043E\u0437\u0432\u043E\u043D \u043F\u0440\u0438\u0448\u043B\u044E \u043F\u0435\u0440\u0435\u0434 \u043D\u0430\u0447\u0430\u043B\u043E\u043C.",
           afterBookingText: "\u0417\u0430\u043D\u044F\u0442\u0438\u0435 \u043F\u0440\u043E\u0445\u043E\u0434\u0438\u0442 \u043E\u043D\u043B\u0430\u0439\u043D. \u0421\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u0441\u043E\u0437\u0432\u043E\u043D \u043F\u0440\u0438\u0448\u043B\u044E \u0432 \u044D\u0442\u043E\u0442 \u0447\u0430\u0442 \u043F\u0435\u0440\u0435\u0434 \u043D\u0430\u0447\u0430\u043B\u043E\u043C.",
@@ -625,6 +629,7 @@ var init_templates = __esm({
         settings: baseSettings({
           emoji: "\u{1F9D8}",
           accent: "#0f9d76",
+          palette: "lilac",
           description: "\u041C\u0430\u0441\u0441\u0430\u0436 \u0438 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u044C\u043D\u044B\u0435 \u0442\u0440\u0435\u043D\u0438\u0440\u043E\u0432\u043A\u0438. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0441\u0435\u0430\u043D\u0441 \u0438 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F.",
           welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435\u0441\u044C \u043D\u0430 \u0441\u0435\u0430\u043D\u0441 \u0432 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u043D\u0430\u043F\u043E\u043C\u043D\u044E \u043D\u0430\u043A\u0430\u043D\u0443\u043D\u0435.",
           labels: { staff: "\u0421\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442", staffPlural: "\u0421\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442\u044B", service: "\u0421\u0435\u0430\u043D\u0441" },
@@ -648,6 +653,7 @@ var init_templates = __esm({
         settings: baseSettings({
           emoji: "\u{1F697}",
           accent: "#e8590c",
+          palette: "amber",
           description: "\u0428\u0438\u043D\u043E\u043C\u043E\u043D\u0442\u0430\u0436, \u043C\u043E\u0439\u043A\u0430, \u0434\u0435\u0442\u0435\u0439\u043B\u0438\u043D\u0433 \u0438 \u043E\u0431\u0441\u043B\u0443\u0436\u0438\u0432\u0430\u043D\u0438\u0435. \u0417\u0430\u043F\u0438\u0441\u044C \u0431\u0435\u0437 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 \u0438 \u0437\u0432\u043E\u043D\u043A\u043E\u0432.",
           welcome: "\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u0430\u0432\u0442\u043E \u043D\u0430 \u0443\u0434\u043E\u0431\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F \u2014 \u0431\u0435\u0437 \u043E\u0447\u0435\u0440\u0435\u0434\u0438 \u0438 \u0437\u0432\u043E\u043D\u043A\u043E\u0432.",
           labels: { staff: "\u0411\u043E\u043A\u0441", staffPlural: "\u0411\u043E\u043A\u0441\u044B", service: "\u0420\u0430\u0431\u043E\u0442\u0430" },
@@ -2104,6 +2110,8 @@ async function boot(ctx, p) {
     client: client ?? null,
     next: next ?? null,
     others,
+    // ссылки «поделиться» для клиента: позвать подругу к этому же мастеру
+    share: business ? { tg: clientLink(business.slug), max: config.maxBotToken && config.maxBotName ? maxClientLink(business.slug) : null } : null,
     adminOf: adminOf.map((b) => ({ id: b.id, slug: b.slug, name: b.name, role: b.role, emoji: b.settings.emoji })),
     templates: tplList()
   };
@@ -2337,6 +2345,8 @@ async function removeTimeOff(ctx, p) {
   await db().query(`delete from time_off where id = $1 and business_id = $2`, [int(p.id, "id"), ctx.business.id]);
   return { ok: true };
 }
+var PALETTES = ["rose", "lilac", "mint", "amber", "sky", "graphite", "banner"];
+var isPalette = (v) => typeof v === "string" && (PALETTES.includes(v) || /^#[0-9a-f]{6}$/i.test(v));
 var SETTINGS_KEYS = [
   "emoji",
   "accent",
@@ -2354,7 +2364,8 @@ var SETTINGS_KEYS = [
   "chooseStaff",
   "requirePhone",
   "remind2h",
-  "fields"
+  "fields",
+  "palette"
 ];
 async function saveSettings(ctx, p) {
   const incoming = p.settings ?? {};
@@ -2379,6 +2390,7 @@ async function saveSettings(ctx, p) {
     if (k in settings) settings[k] = str(settings[k], 1e3);
   }
   if (settings.accent && !/^#[0-9a-f]{6}$/i.test(settings.accent)) delete settings.accent;
+  if ("palette" in settings && !isPalette(settings.palette)) delete settings.palette;
   const b = await updateBusiness(db(), ctx.business.id, {
     name: p.name ? str(p.name, 80) : void 0,
     timezone: p.timezone ? str(p.timezone, 60) : void 0,
