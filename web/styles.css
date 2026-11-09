@@ -524,43 +524,59 @@ html.glow body { font-family: var(--f-text); background: transparent; font-varia
 .g-light i:nth-child(1) { left: -35vw; top: -12vh; width: 120vw; height: 120vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-a) 62%, transparent), transparent); }
 .g-light i:nth-child(2) { right: -40vw; top: 32vh; width: 110vw; height: 110vw; background: radial-gradient(closest-side, var(--glow-b), transparent); animation-duration: 19s; animation-direction: alternate-reverse; }
 .g-light i:nth-child(3) { left: -20vw; bottom: -30vh; width: 100vw; height: 100vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-c) 55%, transparent), transparent); animation-duration: 23s; }
-/* четвёртое пятно лежит на первом другим оттенком и то проявляется, то гаснет — свет плавно переливается */
+/* переливание: поверх яркого пятна лежит второе, сдвинутое по оттенку (--glow-d), оно медленно проявляется и гаснет,
+   а среднее пятно «дышит». Только transform и opacity — заметно, но спокойно и дёшево для телефона. */
 .g-light i:nth-child(4) {
-  left: -35vw; top: -12vh; width: 120vw; height: 120vw;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-c) 75%, transparent), transparent);
-  animation: g-drift 16s ease-in-out infinite alternate, g-swap 9s ease-in-out infinite alternate;
+  left: -30vw; top: -6vh; width: 120vw; height: 120vw;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-d) 80%, transparent), transparent);
+  animation: g-drift 13s ease-in-out infinite alternate-reverse, g-swap 7s ease-in-out infinite alternate;
 }
-.g-light i:nth-child(2) { animation: g-drift 19s ease-in-out infinite alternate-reverse, g-breath 11s ease-in-out infinite alternate; }
+.g-light i:nth-child(2) { animation: g-drift 17s ease-in-out infinite alternate-reverse, g-breath 9s ease-in-out infinite alternate; }
+.g-light i:nth-child(3) { animation: g-drift 21s ease-in-out infinite alternate, g-breath 12s 3s ease-in-out infinite alternate; }
 /* зерно мягче: плитка растянута в 1,5 раза (зёрна не колючие) и почти прозрачная */
 .g-light::after { content: ""; position: absolute; inset: 0; background-image: var(--grain); background-size: 210px 210px; opacity: 0.35; }
-@keyframes g-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(8vw, 6vh, 0) scale(1.16); } }
-@keyframes g-swap { from { opacity: 0; } to { opacity: 0.95; } }
-@keyframes g-breath { from { opacity: 1; } to { opacity: 0.45; } }
+@keyframes g-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(10vw, 8vh, 0) scale(1.2); } }
+@keyframes g-swap { 0%, 15% { opacity: 0; } 85%, 100% { opacity: 1; } }
+@keyframes g-breath { from { opacity: 1; } to { opacity: 0.35; } }
 
 .g-page { padding-top: 18px; }
 .g-home .home-price::before { display: none; }
 .g-k { font-family: var(--f-text); font-size: 12px; letter-spacing: 0.02em; color: var(--sub); font-weight: 400; }
 
 
-/* обложка во всю ширину, как раньше: сверху и снизу размывается и растворяется в цвете страницы (и в свете за ней) */
-.g-has-cover { padding-top: 0; }
+/* обложка — фон шапки: текст стоит там же, где и без обложки, а фото лежит под ним.
+   Сверху фото почти чёткое и уходит в цвет шапки Telegram, ниже — размывается и под вуалью цвета страницы,
+   чтобы описание и адрес читались, а к кнопке «записаться» полностью растворяется. */
+.g-home { position: relative; }
+.g-home > :not(.g-cover) { position: relative; }
 .g-cover {
-  position: relative; height: 350px; overflow: hidden; isolation: isolate;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 13%, #000 56%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 13%, #000 56%, transparent 100%);
+  position: absolute; left: 0; right: 0; top: 0; height: 470px; overflow: hidden; isolation: isolate; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 50%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 50%, transparent 100%);
 }
 .g-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .g-cover-img { animation: g-focus 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .g-cover-blur {
-  filter: blur(16px) saturate(1.1); transform: scale(1.12);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.6) 8%, transparent 22%, transparent 42%, #000 74%);
-  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.6) 8%, transparent 22%, transparent 42%, #000 74%);
+  filter: blur(14px) saturate(1.15); transform: scale(1.12);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 8%, rgba(0, 0, 0, 0.7) 24%, #000 40%);
+  mask-image: linear-gradient(to bottom, transparent 8%, rgba(0, 0, 0, 0.7) 24%, #000 40%);
 }
-.g-cover::after { content: ""; position: absolute; inset: 0; background: var(--grain); background-size: 210px 210px; opacity: 0.6; }
+/* вуаль цвета страницы: сверху лёгкая (фото видно), под текстом — плотнее */
+.g-cover::before {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--bg) 18%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 30%, transparent) 20%,
+    color-mix(in srgb, var(--bg) 62%, transparent) 42%,
+    color-mix(in srgb, var(--bg) 80%, transparent) 70%);
+}
+.g-cover::after { content: ""; position: absolute; inset: 0; z-index: 2; background: var(--grain); background-size: 210px 210px; opacity: 0.6; }
+/* имя и текст поверх фото: мягкий ореол цвета страницы вокруг букв */
+.g-has-cover .g-script { text-shadow: 0 0 18px color-mix(in srgb, var(--bg) 95%, transparent), 0 0 34px color-mix(in srgb, var(--glow-b) 90%, transparent); }
+.g-has-cover .g-lead, .g-has-cover .g-fact { text-shadow: 0 0 10px color-mix(in srgb, var(--bg) 90%, transparent); }
 @keyframes g-focus { from { filter: blur(18px) saturate(1.3); transform: scale(1.06); } to { filter: none; transform: none; } }
 
 .g-hero { position: relative; padding: 4px 20px 0; }
-.g-has-cover .g-hero { margin-top: -104px; }
 .g-script {
   font-family: var(--f-script); font-weight: 400; line-height: 1.05; letter-spacing: 0; color: var(--text);
   padding: 0.04em 0 0.1em; overflow-wrap: anywhere;
@@ -592,7 +608,8 @@ html.glow body { font-family: var(--f-text); background: transparent; font-varia
   box-shadow: 0 16px 36px -14px color-mix(in srgb, var(--glow-a) 85%, transparent);
   transition: transform 0.12s ease; animation: g-breathe 3.2s 1.2s ease-in-out infinite;
 }
-.g-cta > span:only-child { margin: 0 auto; }
+.g-cta > span:first-child { flex: 1; text-align: center; }
+.g-cta:has(.g-cta-pill) { padding-left: 10px; }
 .g-cta:active { transform: scale(0.98); }
 .g-cta:disabled { opacity: 0.55; animation: none; cursor: default; }
 @keyframes g-breathe { 50% { box-shadow: 0 16px 46px -10px color-mix(in srgb, var(--glow-a) 100%, transparent); } }

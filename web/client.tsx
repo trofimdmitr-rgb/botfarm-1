@@ -76,20 +76,31 @@ function useNearest(b: Biz): string {
   const first = b.services[0]?.id;
   const cached = nearCache.get(b.id);
   const fresh = cached && Date.now() - cached.at < 60_000 ? cached.label : null;
-  const [label, setLabel] = useState(fresh ?? "");
+  const [label, setLabel] = useState(fresh ?? cached?.label ?? "");
   useEffect(() => {
-    if (!first || fresh !== null) return;
+    if (!first) return;
     let alive = true;
-    api<Record<string, Slot[]>>("availability", { businessId: b.id, serviceId: first, staffId: null, days: 7 })
-      .then((data) => {
-        const day = Object.keys(data).find((d) => data[d].length);
-        const v = day ? `${dayWord(day, b.timezone)} ${data[day][0].label}` : "";
-        nearCache.set(b.id, { at: Date.now(), label: v });
-        if (alive) setLabel(v);
-      })
-      .catch(() => {});
+    const load = () => {
+      const c = nearCache.get(b.id);
+      if (c && Date.now() - c.at < 60_000) return;
+      api<Record<string, Slot[]>>("availability", { businessId: b.id, serviceId: first, staffId: null, days: 7 })
+        .then((data) => {
+          const day = Object.keys(data).find((d) => data[d].length);
+          const v = day ? `${dayWord(day, b.timezone)} ${data[day][0].label}` : "";
+          nearCache.set(b.id, { at: Date.now(), label: v });
+          if (alive) setLabel(v);
+        })
+        .catch(() => {});
+    };
+    load();
+    // окно «сегодня 10:00» живое: пока главная открыта — проверяем раз в минуту и при возвращении в приложение
+    const t = window.setInterval(load, 60_000);
+    const onShow = () => document.visibilityState === "visible" && load();
+    document.addEventListener("visibilitychange", onShow);
     return () => {
       alive = false;
+      window.clearInterval(t);
+      document.removeEventListener("visibilitychange", onShow);
     };
   }, [b.id, first]);
   return label;

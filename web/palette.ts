@@ -78,6 +78,7 @@ export function glowVars(g: Glow): Record<string, string> {
     "--glow-a": g.a,
     "--glow-b": g.b,
     "--glow-c": g.c,
+    "--glow-d": shiftHue(g.a, g.dark ? 50 : 38),
     "--grain": `url(${grainTile(g.dark ? "#ffffff" : g.ink)})`,
   };
 }
@@ -114,6 +115,12 @@ function grainTile(color: string): string {
 }
 
 // ---------- цвет ----------
+
+/** Тот же цвет со сдвигом оттенка — второй цвет переливания света (розовый уходит в коралловый/сиреневый и т.д.). */
+function shiftHue(hex: string, deg: number): string {
+  const [h, s, l] = hsl(hex);
+  return hslHex((h + deg + 360) % 360, Math.min(1, s), l);
+}
 
 function hsl(hex: string): [number, number, number] {
   const v = parseInt(hex.slice(1), 16);
