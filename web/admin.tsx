@@ -23,7 +23,7 @@ import {
   shareLink,
   todayIn,
 } from "./lib";
-import { GLOWS } from "./palette";
+import { COLORS, colorDots } from "./palette";
 import type { Booking, PublicBusiness, Service, Settings, Staff } from "./types";
 import { StatusBadge } from "./client";
 import {
@@ -480,9 +480,10 @@ function SettingsEditor({ ov, reload, toast, onSaved }: Ctx & { onSaved: () => v
       <PaletteEditor
         businessId={b.id}
         value={s.palette || "rose"}
+        mode={s.paletteMode || "dark"}
         hasBanner={!!s.bannerFileId}
-        onChange={(palette) => {
-          setS({ ...s, palette });
+        onChange={(palette, paletteMode) => {
+          setS({ ...s, palette, paletteMode });
           reload();
         }}
       />
@@ -983,46 +984,51 @@ function BannerEditor(p: { businessId: number; fileId?: string; onChange: (fileI
   );
 }
 
-/** Цвет страницы: готовые «свечения», цвет из обложки или свой. Применяется сразу. */
-function PaletteEditor(p: { businessId: number; value: string; hasBanner: boolean; onChange: (palette: string) => void }) {
+/** Цвет страницы: режим (тёмная/светлая), цвет пятна — готовый, из обложки или свой. Применяется сразу. */
+function PaletteEditor(p: { businessId: number; value: string; mode: "dark" | "light"; hasBanner: boolean; onChange: (palette: string, mode: "dark" | "light") => void }) {
   const custom = /^#[0-9a-f]{6}$/i.test(p.value);
   const [own, setOwn] = useState(custom ? p.value : "#e8442c");
   const [busy, setBusy] = useState("");
-  const save = async (palette: string) => {
+  const save = async (palette: string, mode: "dark" | "light") => {
     if (busy) return;
-    setBusy(palette);
+    setBusy(palette + mode);
     try {
-      await api("admin.saveSettings", { businessId: p.businessId, settings: { palette } });
+      await api("admin.saveSettings", { businessId: p.businessId, settings: { palette, paletteMode: mode } });
       haptic("success");
-      p.onChange(palette);
+      p.onChange(palette, mode);
     } catch (e: any) {
       await alertMsg(e.message);
     } finally {
       setBusy("");
     }
   };
-  const options = [...GLOWS, ...(p.hasBanner ? [{ ...GLOWS[0], id: "banner", label: "Из обложки" }] : [])];
+  const options: { id: string; label: string; dots: string[] }[] = [
+    ...COLORS.map((c) => ({ id: c.id, label: c.label, dots: colorDots(c) })),
+    ...(p.hasBanner ? [{ id: "banner", label: "Из обложки", dots: [] }] : []),
+  ];
   return (
-    <Section title="Цвет страницы" footer="Фон, кнопки и мягкое свечение на странице для клиентов. Нажмите — применится сразу.">
+    <Section title="Цвет страницы" footer="Фон, кнопка «Записаться» и текучее пятно света на странице для клиентов. Нажмите — применится сразу.">
+      <div className="mode-switch" role="group" aria-label="Тёмная или светлая страница">
+        {(["dark", "light"] as const).map((m) => (
+          <button key={m} className={p.mode === m ? "mode-on" : ""} aria-pressed={p.mode === m} onClick={() => save(p.value, m)}>
+            {m === "dark" ? "Тёмная" : "Светлая"}
+          </button>
+        ))}
+      </div>
       <div className="swatches">
         {options.map((g) => (
-          <button
-            key={g.id}
-            className={`swatch ${p.value === g.id ? "swatch-on" : ""}`}
-            onClick={() => save(g.id)}
-            aria-pressed={p.value === g.id}
-          >
+          <button key={g.id} className={`swatch ${p.value === g.id ? "swatch-on" : ""}`} onClick={() => save(g.id, p.mode)} aria-pressed={p.value === g.id}>
             <span
               className="swatch-dot"
-              style={
-                g.id === "banner"
-                  ? { background: "conic-gradient(from 90deg, #f9c6dc, #c8dcfa, #c4ecdc, #fbdcae, #f9c6dc)" }
-                  : { background: `radial-gradient(circle at 30% 30%, ${g.a}, transparent 60%), ${g.bg}`, boxShadow: `inset 0 0 0 1px ${g.ink}33` }
-              }
+              style={{
+                background: g.dots.length
+                  ? `radial-gradient(circle at 30% 30%, ${g.dots[0]}, transparent 62%), radial-gradient(circle at 75% 70%, ${g.dots[1]}, transparent 60%), radial-gradient(circle at 70% 25%, ${g.dots[2]}, transparent 55%), ${p.mode === "dark" ? "#0b0b0d" : "#f2f2f4"}`
+                  : "conic-gradient(from 90deg, #ff2d87, #ffc21a, #19e0a0, #3d8bff, #b13cff, #ff2d87)",
+              }}
             >
               {p.value === g.id && <Icon name="check" size={16} />}
             </span>
-            <span className="swatch-label">{busy === g.id ? "…" : g.label}</span>
+            <span className="swatch-label">{busy === g.id + p.mode ? "…" : g.label}</span>
           </button>
         ))}
       </div>
@@ -1031,7 +1037,7 @@ function PaletteEditor(p: { businessId: number; value: string; hasBanner: boolea
           <input type="color" value={own} onChange={(e) => setOwn(e.target.value)} aria-label="Свой цвет" />
           <span>Свой цвет</span>
         </label>
-        <button className={`btn btn-small ${custom && p.value.toLowerCase() === own.toLowerCase() ? "btn-secondary" : "btn-primary"}`} onClick={() => save(own)}>
+        <button className={`btn btn-small ${custom && p.value.toLowerCase() === own.toLowerCase() ? "btn-secondary" : "btn-primary"}`} onClick={() => save(own, p.mode)}>
           {custom && p.value.toLowerCase() === own.toLowerCase() ? "Применён" : "Применить"}
         </button>
       </div>

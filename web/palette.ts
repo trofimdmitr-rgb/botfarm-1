@@ -1,84 +1,121 @@
-// «Свечение» — палитры страницы мастера в стиле «Розовый свет»: пастельный фон, глубокий цвет текста
-// и три мягких пятна света. Мастер выбирает готовую палитру, цвет из обложки или свой цвет.
+// Палитры страницы мастера. По умолчанию — тёмная, как Яндекс Музыка: почти чёрный фон и яркие текучие
+// пятна цвета мастера. По выбору — светлая пастель. Мастер выбирает цвет (готовый, из обложки или свой) и режим.
 
 export interface Glow {
   id: string;
   label: string;
   dark: boolean;
   bg: string; // фон страницы и шапки Telegram
-  ink: string; // текст и кнопки
+  ink: string; // основной текст
   sub: string; // вторичный текст (контраст ≥ 4.5 к фону)
-  a: string; // яркое пятно света
-  b: string; // светлое пятно
-  c: string; // среднее пятно
-  btnText: string; // текст на кнопке цвета ink
+  a: string; // три цвета текучего пятна
+  b: string;
+  c: string;
+  cta: string; // кнопка «Записаться»: перелив от cta к cta2
+  cta2: string;
+  ctaText: string;
+  surface: string; // карточки и плашки
 }
 
-export const GLOWS: Glow[] = [
-  { id: "rose", label: "Розовый", dark: false, bg: "#f9c6dc", ink: "#4a0f2e", sub: "#6e2049", a: "#ff4fa0", b: "#ffe3ef", c: "#ff86c0", btnText: "#ffe3ef" },
-  { id: "lilac", label: "Сиреневый", dark: false, bg: "#dccbf7", ink: "#2a1352", sub: "#47307a", a: "#9a6bff", b: "#f3ecff", c: "#c2a3ff", btnText: "#f3ecff" },
-  { id: "mint", label: "Мятный", dark: false, bg: "#c4ecdc", ink: "#0f3a2c", sub: "#1f5845", a: "#2fd39f", b: "#ecfff7", c: "#8ae0c0", btnText: "#ecfff7" },
-  { id: "amber", label: "Янтарный", dark: false, bg: "#fbdcae", ink: "#4a2808", sub: "#6e4113", a: "#ff9a2e", b: "#fff3dc", c: "#ffc06e", btnText: "#fff3dc" },
-  { id: "sky", label: "Небо", dark: false, bg: "#c8dcfa", ink: "#0f2650", sub: "#284476", a: "#4f8dff", b: "#eef4ff", c: "#8fb7ff", btnText: "#eef4ff" },
-  { id: "graphite", label: "Графит", dark: true, bg: "#17131a", ink: "#f6eaf1", sub: "#cdb6c3", a: "#8a2a5c", b: "#2a2030", c: "#5a2a48", btnText: "#17131a" },
+interface Color {
+  id: string;
+  label: string;
+  vivid: [string, string, string]; // яркие цвета пятна
+  light: { bg: string; ink: string; sub: string }; // светлая пастель
+}
+
+export const COLORS: Color[] = [
+  { id: "rose", label: "Розовый", vivid: ["#ff2d87", "#ff8a3d", "#b13cff"], light: { bg: "#f9c6dc", ink: "#4a0f2e", sub: "#6e2049" } },
+  { id: "lilac", label: "Сиреневый", vivid: ["#8b5cff", "#ff4fd8", "#4f7bff"], light: { bg: "#dccbf7", ink: "#2a1352", sub: "#47307a" } },
+  { id: "mint", label: "Мятный", vivid: ["#19e0a0", "#2fb8ff", "#c6ff4a"], light: { bg: "#c4ecdc", ink: "#0f3a2c", sub: "#1f5845" } },
+  { id: "amber", label: "Янтарный", vivid: ["#ffc21a", "#ff4a2e", "#ff2d87"], light: { bg: "#fbdcae", ink: "#4a2808", sub: "#6e4113" } },
+  { id: "sky", label: "Небо", vivid: ["#3d8bff", "#31e1ff", "#8a5cff"], light: { bg: "#c8dcfa", ink: "#0f2650", sub: "#284476" } },
+  { id: "graphite", label: "Графит", vivid: ["#e6e6ea", "#9a9aa3", "#5c5c66"], light: { bg: "#e4e4e8", ink: "#17171a", sub: "#45454c" } },
 ];
 
-/** Палитра из любого цвета: тот же оттенок, светлый фон, глубокий текст. */
-export function glowFromHex(hex: string, id = hex, label = "Свой цвет"): Glow {
+/** Цвет из любого #rrggbb: яркое пятно того же оттенка с соседями ±35°, пастель для светлого режима. */
+function colorFromHex(hex: string, id: string, label: string): Color {
   const [h, s0] = hsl(hex);
-  const s = Math.max(0.18, Math.min(s0, 0.85)); // серый остаётся спокойным, кислотный — смягчается
-  const c = (sat: number, l: number) => hslHex(h, sat, l);
+  const s = Math.max(0.18, Math.min(s0, 0.9));
+  const vs = Math.max(s, 0.75);
   return {
     id,
     label,
-    dark: false,
-    bg: c(s, 0.86),
-    ink: c(Math.min(1, s + 0.1), 0.15),
-    sub: c(Math.min(1, s), 0.24),
-    a: c(Math.min(1, s + 0.25), 0.64),
-    b: c(Math.min(1, s + 0.1), 0.95),
-    c: c(Math.min(1, s + 0.2), 0.78),
-    btnText: c(Math.min(1, s + 0.1), 0.95),
+    vivid: [hslHex(h, vs, 0.58), hslHex((h + 35) % 360, vs, 0.6), hslHex((h + 325) % 360, vs, 0.55)],
+    light: { bg: hslHex(h, s, 0.86), ink: hslHex(h, Math.min(1, s + 0.1), 0.15), sub: hslHex(h, s, 0.24) },
   };
 }
 
-/** Какая палитра у бизнеса. tone — цвет обложки (для «из обложки»). */
-export function glowFor(palette: string | undefined, tone: string): Glow {
-  const p = palette || "rose";
-  const preset = GLOWS.find((g) => g.id === p);
-  if (preset) return preset;
-  if (p === "banner") return tone ? glowFromHex(tone, "banner", "Из обложки") : GLOWS[0];
-  if (/^#[0-9a-f]{6}$/i.test(p)) return glowFromHex(p);
-  return GLOWS[0];
+const DARK_BG = "#0b0b0d";
+
+function build(c: Color, dark: boolean): Glow {
+  const [a, b, cc] = c.vivid;
+  if (dark) {
+    return {
+      id: c.id,
+      label: c.label,
+      dark: true,
+      bg: DARK_BG,
+      ink: "#ffffff",
+      sub: "#a9a9b2",
+      a,
+      b,
+      c: cc,
+      cta: a,
+      cta2: b,
+      ctaText: bestText(a, b),
+      surface: "#17171b",
+    };
+  }
+  const { bg, ink, sub } = c.light;
+  return { id: c.id, label: c.label, dark: false, bg, ink, sub, a, b: shade(a, 0.2), c: b, cta: ink, cta2: shade(ink, 0.12), ctaText: bg, surface: mix(bg, 45, "#ffffff") };
 }
 
-const mix = (c: string, pct: number, with_ = "transparent") => `color-mix(in srgb, ${c} ${pct}%, ${with_})`;
+/** Какая палитра у бизнеса. tone — цвет обложки (для «из обложки»). */
+export function glowFor(palette: string | undefined, mode: string | undefined, tone: string): Glow {
+  const p = palette || "rose";
+  const dark = mode !== "light";
+  const preset = COLORS.find((g) => g.id === p);
+  if (preset) return build(preset, dark);
+  if (p === "banner" && tone) return build(colorFromHex(tone, "banner", "Из обложки"), dark);
+  if (/^#[0-9a-f]{6}$/i.test(p)) return build(colorFromHex(p, p, "Свой цвет"), dark);
+  return build(COLORS[0], dark);
+}
+
+/** Превью цвета в настройках: три ярких цвета пятна. */
+export const colorDots = (c: Color) => c.vivid;
+
+function mix(c: string, pct: number, with_ = "transparent") {
+  return `color-mix(in srgb, ${c} ${pct}%, ${with_})`;
+}
 
 /** CSS-переменные приложения для палитры (совместимы с панелью мастера). */
 export function glowVars(g: Glow): Record<string, string> {
   return {
     "--bg": g.bg,
-    "--card": g.dark ? mix(g.bg, 86, "#ffffff") : mix(g.bg, 40, "#ffffff"),
+    "--card": g.dark ? g.surface : mix(g.bg, 40, "#ffffff"),
     "--text": g.ink,
     "--sub": g.sub,
-    "--hint": mix(g.sub, 88, g.bg),
+    "--hint": g.dark ? "#8e8e98" : mix(g.sub, 88, g.bg),
     "--head": g.sub,
-    "--link": g.ink,
-    "--btn": g.ink,
-    "--btn-text": g.btnText,
-    "--accent": g.ink,
-    "--accent-text": g.btnText,
-    "--sep": mix(g.ink, 16),
+    "--link": g.dark ? g.a : g.ink,
+    "--btn": g.dark ? "#ffffff" : g.ink,
+    "--btn-text": g.dark ? DARK_BG : g.ctaText,
+    "--accent": g.dark ? g.a : g.ink,
+    "--accent-text": g.dark ? g.ctaText : g.ctaText,
+    "--sep": g.dark ? "rgba(255,255,255,.1)" : mix(g.ink, 16),
     "--soft": g.dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.45)",
     "--tile": g.dark ? "rgba(255,255,255,.07)" : "rgba(255,255,255,.42)",
     "--tile-press": g.dark ? "rgba(255,255,255,.14)" : "rgba(255,255,255,.66)",
-    "--cta-bg": g.ink,
-    "--cta-text": g.btnText,
-    "--switch-on": g.ink,
+    "--surface": g.surface,
+    "--cta-bg": g.cta,
+    "--cta-bg2": g.cta2,
+    "--cta-text": g.ctaText,
+    "--switch-on": g.dark ? g.a : g.ink,
+    "--tab-on": g.dark ? "#ffffff" : g.ink,
     "--glow-a": g.a,
     "--glow-b": g.b,
     "--glow-c": g.c,
-    "--glow-d": shade(g.a, g.dark ? 0.14 : -0.16),
     "--grain": `url(${grainTile(g.dark ? "#ffffff" : g.ink)})`,
   };
 }
@@ -116,10 +153,27 @@ function grainTile(color: string): string {
 
 // ---------- цвет ----------
 
-/** Тот же цвет, только ярче или темнее (и чуть насыщеннее) — второй цвет переливания света. */
 function shade(hex: string, dl: number): string {
   const [h, s, l] = hsl(hex);
-  return hslHex(h, Math.min(1, s + 0.08), Math.max(0.08, Math.min(0.92, l + dl)));
+  return hslHex(h, Math.min(1, s + 0.05), Math.max(0.06, Math.min(0.94, l + dl)));
+}
+
+function lum(hex: string): number {
+  const v = parseInt(hex.slice(1), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255]
+    .map((x) => {
+      const c = x / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    })
+    .reduce((s, c, i) => s + c * [0.2126, 0.7152, 0.0722][i], 0);
+}
+const ratio = (x: number, y: number) => (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+
+/** Чёрный или белый текст на кнопке-переливе: берём тот, у которого контраст хуже всего выше. */
+function bestText(...bgs: string[]): string {
+  const black = Math.min(...bgs.map((b) => ratio(lum(b), lum(DARK_BG))));
+  const white = Math.min(...bgs.map((b) => ratio(lum(b), 1)));
+  return black >= white ? DARK_BG : "#ffffff";
 }
 
 function hsl(hex: string): [number, number, number] {
@@ -143,5 +197,5 @@ function hslHex(h: number, s: number, l: number): string {
 
 /** Тема приложения из палитры (тот же формат, что у темы от баннера). */
 export function glowTheme(g: Glow): import("./lib").Theme {
-  return { tone: g.bg, light: !g.dark, vars: glowVars(g), btn: g.ink, btnText: g.btnText, glow: g };
+  return { tone: g.bg, light: !g.dark, vars: glowVars(g), btn: g.dark ? g.cta : g.ink, btnText: g.ctaText, glow: g };
 }

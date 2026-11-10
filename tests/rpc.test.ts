@@ -152,6 +152,10 @@ describe("клиентский путь", () => {
     await call("admin.saveSettings", { businessId: biz.id, settings: { palette: "url(javascript:1)" } });
     expect(((await call("boot", {}, as(302, "nogti-anny"))) as any).business.settings.palette).toBe("#3366ff");
     await expect(call("admin.saveSettings", { businessId: biz.id, settings: { palette: "rose" } }, as(302))).rejects.toThrow("Нет доступа");
+    expect(((await call("boot", {}, as(302, "nogti-anny"))) as any).business.settings.paletteMode).toBe("dark");
+    await call("admin.saveSettings", { businessId: biz.id, settings: { paletteMode: "light" } });
+    await call("admin.saveSettings", { businessId: biz.id, settings: { paletteMode: "neon" } });
+    expect(((await call("boot", {}, as(302, "nogti-anny"))) as any).business.settings.paletteMode).toBe("light");
   });
 
   it("заблокированный бизнес не показывается клиентам", async () => {

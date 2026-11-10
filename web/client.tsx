@@ -1,6 +1,7 @@
-// Клиентская часть в стиле «Розовый свет»: пастельный фон со свечением и зерном, имя мастера рукописным (Great Vibes),
-// заголовки и кнопки — Unbounded, текст, цифры и подписи — Onest. Время — как трек-лист альбома, после записи — постер для сторис.
-import { useEffect, useMemo, useState } from "react";
+// Клиентская часть в духе Яндекс Музыки: тёмный фон (по умолчанию), текучее цветное пятно за крупным жирным именем,
+// один шрифт Golos (900 — заголовки, 400–500 — текст), подборки с жирными заголовками, кнопка с медленным переливом.
+// Все анимации тихие: только transform/opacity/background-position, при «уменьшить движение» выключаются.
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addDays,
   alertMsg,
@@ -34,10 +35,71 @@ const PRICE_PREVIEW = 5;
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
-/** Размер рукописного имени: короткое — крупно, длинное — мельче, чтобы влезало в 2 строки. */
-function scriptSize(text: string): number {
+/** Размер крупного имени: короткое — огромным, длинное — мельче, чтобы влезало в 2–3 строки. */
+function nameSize(text: string): number {
+  const longest = Math.max(...text.trim().split(/\s+/).map((w) => w.length));
   const n = text.trim().length;
-  return n <= 9 ? 66 : n <= 14 ? 54 : n <= 20 ? 44 : n <= 28 ? 36 : 30;
+  const byWord = longest <= 5 ? 76 : longest <= 7 ? 64 : longest <= 9 ? 54 : longest <= 12 ? 44 : 36;
+  return Math.min(byWord, n <= 12 ? 76 : n <= 20 ? 60 : n <= 30 ? 48 : 38);
+}
+
+/** Текучее пятно: три цветных эллипса медленно плывут и вращаются — форма как будто переливается. */
+function Blob({ className = "" }: { className?: string }) {
+  return (
+    <div className={`g-blob ${className}`} aria-hidden>
+      <i />
+      <i />
+      <i />
+    </div>
+  );
+}
+
+/** Блоки плавно проявляются при прокрутке (в автотестах и при «уменьшить движение» — сразу видны). */
+function useReveal(dep: unknown) {
+  useEffect(() => {
+    if ((navigator as any).webdriver || !("IntersectionObserver" in window)) return;
+    const els = Array.from(document.querySelectorAll<HTMLElement>(".g-reveal:not(.g-in)"));
+    const io = new IntersectionObserver(
+      (list) => {
+        for (const e of list) {
+          if (e.isIntersecting) {
+            e.target.classList.add("g-in");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px" },
+    );
+    els.forEach((el) => {
+      el.classList.add("g-wait");
+      io.observe(el);
+    });
+    return () => io.disconnect();
+  }, [dep]);
+}
+
+/** Параллакс: обложка и пятно при прокрутке уезжают медленнее текста и мягко гаснут. */
+function useParallax(ref: React.RefObject<HTMLDivElement | null>, blob: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    const on = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const y = Math.max(0, Math.min(window.scrollY, 700));
+        if (ref.current) {
+          ref.current.style.transform = `translate3d(0, ${y * 0.45}px, 0)`;
+          ref.current.style.opacity = String(Math.max(0, 1 - y / 520));
+        }
+        if (blob.current) blob.current.style.transform = `translate3d(-50%, ${y * 0.25}px, 0)`;
+      });
+    };
+    window.addEventListener("scroll", on, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", on);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
 }
 
 /** Штрихкод из строки (номер записи, адрес страницы) — декоративный, но у каждого свой. */
@@ -117,54 +179,38 @@ export function BusinessHome(p: {
 }) {
   const b = p.boot.business!;
   const s = b.settings;
+  const tz = b.timezone;
   const banner = bannerUrl(b.id, s.bannerFileId);
   const [allPrices, setAllPrices] = useState(false);
   const nearest = useNearest(b);
   const open = b.services.length > 0;
+  const coverRef = useRef<HTMLDivElement>(null);
+  const blobRef = useRef<HTMLDivElement>(null);
+  useParallax(coverRef, blobRef);
+  useReveal(allPrices);
+  const next = p.boot.next;
 
   return (
     <div className={`page g-page g-home ${banner ? "g-has-cover" : ""}`}>
-      {/* обложка во всю ширину: сверху и снизу размывается и растворяется в цвете страницы */}
-      {banner && (
-        <div className="cover g-cover" aria-hidden>
-          <img className="g-cover-img" src={banner} alt="" />
-          <img className="g-cover-blur" src={banner} alt="" />
+      {/* обложка — фон шапки за текстом: в кадре середина фото, ниже размывается и растворяется */}
+      {/* фон шапки обрезан своим слоем: пятно шире экрана, но страница не прокручивается вбок */}
+      <div className="g-bg" aria-hidden>
+        {banner && (
+          <div className="cover g-cover" ref={coverRef}>
+            <img className="g-cover-img" src={banner} alt="" />
+            <img className="g-cover-blur" src={banner} alt="" />
+          </div>
+        )}
+        <div className="g-blob-wrap" ref={blobRef}>
+          <Blob />
         </div>
-      )}
+      </div>
 
       <header className="g-hero">
-        <h1 className="g-script" style={{ fontSize: scriptSize(b.name) }}>
+        <h1 className="g-name" style={{ fontSize: nameSize(b.name) }}>
           {b.name}
         </h1>
         {s.description && <p className="g-lead">{s.description}</p>}
-        {(s.address || s.contactPhone || s.links.length > 0) && (
-          <div className="g-facts">
-            {s.address && (
-              <button className="g-fact" onClick={() => openLink(`https://yandex.ru/maps/?text=${encodeURIComponent(s.address)}`)}>
-                <span className="g-k">адрес</span>
-                <span className="g-v">{s.address}</span>
-              </button>
-            )}
-            {s.contactPhone && (
-              <a className="g-fact" href={`tel:${s.contactPhone.replace(/[^\d+]/g, "")}`}>
-                <span className="g-k">телефон</span>
-                <span className="g-v">{s.contactPhone}</span>
-              </a>
-            )}
-            {s.links.length > 0 && (
-              <div className="g-fact">
-                <span className="g-k">ссылки</span>
-                <span className="g-links">
-                  {s.links.map((l) => (
-                    <button key={l.url} className="g-link" onClick={() => openLink(l.url)}>
-                      {l.title}
-                    </button>
-                  ))}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
       </header>
 
       <div className="g-actions">
@@ -176,34 +222,63 @@ export function BusinessHome(p: {
             p.onBook();
           }}
         >
-          <span>{open ? "записаться" : "скоро здесь будет запись"}</span>
+          <span>{open ? "Записаться" : "Скоро здесь будет запись"}</span>
           {open && nearest && <span className="g-cta-pill">{nearest}</span>}
         </button>
-        {p.boot.next && (
-          <button className="home-next g-next" onClick={p.onMy}>
-            <span className="g-k">ваша запись</span>
-            <span className="g-next-when">
-              {fmtDay(p.boot.next.starts_at, b.timezone)} · {fmtTime(p.boot.next.starts_at, b.timezone)}
+        {next && (
+          <button className="home-next g-mini" onClick={p.onMy}>
+            <span className="g-thumb">
+              <b>{new Intl.DateTimeFormat("ru-RU", { timeZone: tz, day: "numeric" }).format(new Date(next.starts_at))}</b>
+              <span>{new Intl.DateTimeFormat("ru-RU", { timeZone: tz, month: "short" }).format(new Date(next.starts_at)).replace(".", "")}</span>
             </span>
-            <span className="g-next-what">{p.boot.next.service_title}</span>
-            <Icon name="arrow" size={18} />
+            <span className="g-mini-main">
+              <span className="g-mini-title">
+                Ваша запись · {fmtWeekday(next.starts_at, tz)}, {fmtTime(next.starts_at, tz)}
+              </span>
+              <span className="g-mini-sub">{next.service_title}</span>
+            </span>
+            <Icon name="arrow" size={20} />
           </button>
         )}
       </div>
 
-      {b.portfolio.length > 0 && (
-        <section className="g-sec home-works">
-          <div className="g-sec-head">
-            <h2>работы</h2>
-            <button onClick={() => p.onPortfolio()}>
-              все {b.portfolio.length} →
-            </button>
+      {(s.address || s.contactPhone || s.links.length > 0) && (
+        <section className="g-sec g-reveal">
+          <div className="g-group">
+            {s.address && (
+              <button className="g-row-i" onClick={() => openLink(`https://yandex.ru/maps/?text=${encodeURIComponent(s.address)}`)}>
+                <Icon name="pin" size={20} />
+                <span className="g-row-i-main">{s.address}</span>
+                <Icon name="arrow" size={16} />
+              </button>
+            )}
+            {s.contactPhone && (
+              <a className="g-row-i" href={`tel:${s.contactPhone.replace(/[^\d+]/g, "")}`}>
+                <Icon name="phone" size={20} />
+                <span className="g-row-i-main">{s.contactPhone}</span>
+                <Icon name="arrow" size={16} />
+              </a>
+            )}
+            {s.links.map((l) => (
+              <button key={l.url} className="g-row-i" onClick={() => openLink(l.url)}>
+                <Icon name="link" size={20} />
+                <span className="g-row-i-main">{l.title}</span>
+                <Icon name="arrow" size={16} />
+              </button>
+            ))}
           </div>
+        </section>
+      )}
+
+      {b.portfolio.length > 0 && (
+        <section className="g-sec home-works g-reveal">
+          <button className="g-sec-title" onClick={() => p.onPortfolio()}>
+            Работы <Icon name="arrow" size={22} />
+          </button>
           <div className="home-works-row">
             {b.portfolio.slice(0, 8).map((ph, i) => (
               <button key={ph.id} className="home-work" onClick={() => p.onPortfolio(i)}>
                 <img src={photoUrl(ph.id)} alt={ph.caption} loading="lazy" />
-                <span className="g-work-n">{pad2(i + 1)}</span>
               </button>
             ))}
           </div>
@@ -211,28 +286,29 @@ export function BusinessHome(p: {
       )}
 
       {open && (
-        <section className="g-sec home-price">
+        <section className="g-sec home-price g-reveal">
           <div className="g-sec-head">
-            <h2>прайс</h2>
+            <h2 className="g-sec-title g-sec-title-static">Прайс</h2>
             {b.services.length > PRICE_PREVIEW && (
-              <button onClick={() => setAllPrices((v) => !v)}>{allPrices ? "свернуть ↑" : `все ${b.services.length} ↓`}</button>
+              <button className="g-pill" onClick={() => setAllPrices((v) => !v)}>
+                {allPrices ? "Свернуть" : `Все ${b.services.length}`}
+              </button>
             )}
           </div>
-          <div className="g-list">
+          <div className="g-group">
             {(allPrices ? b.services : b.services.slice(0, PRICE_PREVIEW)).map((svc, i) => (
               <button
                 key={svc.id}
-                className={`price-row g-track ${i >= PRICE_PREVIEW ? "price-row-more" : ""}`}
+                className={`price-row g-item ${i >= PRICE_PREVIEW ? "price-row-more" : ""}`}
                 style={i >= PRICE_PREVIEW ? { animationDelay: `${(i - PRICE_PREVIEW) * 0.03}s` } : undefined}
                 onClick={() => {
                   haptic();
                   p.onBook(svc.id);
                 }}
               >
-                <span className="g-n">{pad2(i + 1)}</span>
-                <span className="g-track-main">
-                  <span className="g-track-title">{svc.title}</span>
-                  <span className="g-track-sub">
+                <span className="g-item-main">
+                  <span className="g-item-title">{svc.title}</span>
+                  <span className="g-item-sub">
                     {duration(svc.duration_min)}
                     {svc.description ? ` · ${svc.description}` : ""}
                   </span>
@@ -245,20 +321,18 @@ export function BusinessHome(p: {
       )}
 
       {!!p.boot.others?.length && p.onSwitch && (
-        <section className="g-sec home-others">
-          <div className="g-sec-head">
-            <h2>другие ваши мастера</h2>
-          </div>
-          <div className="g-list">
+        <section className="g-sec home-others g-reveal">
+          <h2 className="g-sec-title g-sec-title-static">Другие ваши мастера</h2>
+          <div className="g-group">
             {p.boot.others.map((o) => (
-              <button key={o.id} className="g-track" onClick={() => p.onSwitch!(o.slug)}>
+              <button key={o.id} className="g-item" onClick={() => p.onSwitch!(o.slug)}>
                 {o.bannerFileId ? (
                   <img className="other-ava" src={bannerUrl(o.id, o.bannerFileId) || undefined} alt="" />
                 ) : (
                   <span className="other-ava other-ava-letter">{o.name.trim().charAt(0).toUpperCase()}</span>
                 )}
-                <span className="g-track-main">
-                  <span className="g-track-title">{o.name}</span>
+                <span className="g-item-main">
+                  <span className="g-item-title">{o.name}</span>
                 </span>
                 <Icon name="arrow" size={16} />
               </button>
@@ -271,27 +345,20 @@ export function BusinessHome(p: {
         <div className="g-admin">
           {p.onAdmin && (
             <button onClick={p.onAdmin}>
-              <span className="g-k">вы мастер</span> открыть панель →
+              <b>Вы мастер</b> — открыть панель
+              <Icon name="arrow" size={16} />
             </button>
           )}
           {p.onSuper && (
             <button onClick={p.onSuper}>
-              <span className="g-k">платформа</span> создать бизнес или открыть любой →
+              <b>Платформа</b> — создать бизнес или открыть любой
+              <Icon name="arrow" size={16} />
             </button>
           )}
         </div>
       )}
 
-      <footer className="g-foot">
-        <span className="g-script g-foot-name">{b.name}</span>
-        <span className="g-foot-row">
-          <Barcode seed={b.slug} height={26} />
-          <span className="g-k">онлайн-запись
-            <br />
-            без звонков
-          </span>
-        </span>
-      </footer>
+      <footer className="g-foot">Онлайн-запись без звонков</footer>
     </div>
   );
 }
@@ -312,7 +379,6 @@ export function PortfolioScreen(p: { boot: Boot; onBack: () => void; open?: numb
         {photos.map((ph, i) => (
           <button key={ph.id} className="gallery-item" onClick={() => setOpen(i)}>
             <img src={photoUrl(ph.id)} alt={ph.caption} loading="lazy" />
-            <span className="g-work-n">{pad2(i + 1)}</span>
           </button>
         ))}
       </div>
@@ -429,7 +495,7 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
   };
 
   const order: Step[] = multiStaff ? ["service", "staff", "time", "details"] : ["service", "time", "details"];
-  const stepLabel = (st: Step, what: string) => `шаг ${order.indexOf(st) + 1} / ${order.length} · ${what}`;
+  const stepLabel = (st: Step) => `Шаг ${order.indexOf(st) + 1} из ${order.length}`;
 
   if (step === "done") {
     return <Ticket boot={p.boot} service={service!} done={done!} name={name} onMy={p.onMy} />;
@@ -441,21 +507,20 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
 
       {step === "service" && (
         <>
-          <StepHead label={stepLabel("service", s.labels.service.toLowerCase())} title="Что делаем?" />
-          <div className="g-list">
-            {b.services.map((svc, i) => (
+          <StepHead label={stepLabel("service")} title="Что делаем?" />
+          <div className="g-group g-pad">
+            {b.services.map((svc) => (
               <button
                 key={svc.id}
-                className="g-track g-row"
+                className="g-item g-row"
                 onClick={() => {
                   haptic();
                   setService(svc);
                 }}
               >
-                <span className="g-n">{pad2(i + 1)}</span>
-                <span className="g-track-main">
-                  <span className="g-track-title">{svc.title}</span>
-                  <span className="g-track-sub">
+                <span className="g-item-main">
+                  <span className="g-item-title">{svc.title}</span>
+                  <span className="g-item-sub">
                     {duration(svc.duration_min)}
                     {svc.description ? ` · ${svc.description}` : ""}
                   </span>
@@ -469,37 +534,37 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
 
       {step === "staff" && service && (
         <>
-          <StepHead label={stepLabel("staff", s.labels.staff.toLowerCase())} title="Кто примет?" sub={`${service.title} · ${duration(service.duration_min)}`} />
-          <div className="g-list">
+          <StepHead label={stepLabel("staff")} title="Кто примет?" sub={`${service.title} · ${duration(service.duration_min)}`} />
+          <div className="g-group g-pad">
             <button
-              className="g-track g-row"
+              className="g-item g-row"
               onClick={() => {
                 haptic();
                 setStaffId(null);
                 setStaffChosen(true);
               }}
             >
-              <span className="g-n">✦</span>
-              <span className="g-track-main">
-                <span className="g-track-title">Любой свободный</span>
-                <span className="g-track-sub">покажем больше вариантов времени</span>
+              <span className="g-item-main">
+                <span className="g-item-title">Любой свободный</span>
+                <span className="g-item-sub">Покажем больше вариантов времени</span>
               </span>
+              <Icon name="arrow" size={16} />
             </button>
-            {b.staff.map((st, i) => (
+            {b.staff.map((st) => (
               <button
                 key={st.id}
-                className="g-track g-row"
+                className="g-item g-row"
                 onClick={() => {
                   haptic();
                   setStaffId(st.id);
                   setStaffChosen(true);
                 }}
               >
-                <span className="g-n">{pad2(i + 1)}</span>
-                <span className="g-track-main">
-                  <span className="g-track-title">{st.name}</span>
-                  {st.description && <span className="g-track-sub">{st.description}</span>}
+                <span className="g-item-main">
+                  <span className="g-item-title">{st.name}</span>
+                  {st.description && <span className="g-item-sub">{st.description}</span>}
                 </span>
+                <Icon name="arrow" size={16} />
               </button>
             ))}
           </div>
@@ -509,7 +574,7 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
       {step === "time" && service && (
         <>
           <StepHead
-            label={stepLabel("time", "время")}
+            label={stepLabel("time")}
             title="Во сколько?"
             sub={`${service.title} · ${duration(service.duration_min)} · ${rub(service.price, service.price_from)}${
               multiStaff ? ` · ${staffId ? b.staff.find((x) => x.id === staffId)?.name : "любой мастер"}` : ""
@@ -533,21 +598,21 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
 
       {step === "details" && service && slot && (
         <>
-          <StepHead label={stepLabel("details", "контакты")} title="Почти всё" />
+          <StepHead label={stepLabel("details")} title="Почти всё" />
           <div className="g-stub">
             <div className="g-stub-row">
-              <span className="g-k">услуга</span>
+              <span className="g-k">Услуга</span>
               <span>{service.title}</span>
             </div>
             <button className="g-stub-row g-stub-time" onClick={() => setSlot(null)}>
-              <span className="g-k">когда</span>
+              <span className="g-k">Когда</span>
               <span>
                 {fmtDay(slot.start, tz)} · <b>{slot.label}</b>
               </span>
-              <span className="g-stub-edit">изменить</span>
+              <span className="g-stub-edit">Изменить</span>
             </button>
             <div className="g-stub-row">
-              <span className="g-k">стоимость</span>
+              <span className="g-k">Стоимость</span>
               <span>
                 {rub(service.price, service.price_from)} · {duration(service.duration_min)}
               </span>
@@ -626,7 +691,7 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
   );
 }
 
-/** «Вы записаны»: постер в духе афиши — его удобно заскринить в сторис или переслать. */
+/** «Вы записаны»: постер с текучим пятном — его удобно заскринить в сторис или переслать. */
 function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at: string }; name: string; onMy: () => void }) {
   const b = p.boot.business!;
   const s = b.settings;
@@ -640,19 +705,17 @@ function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at
   return (
     <div className="page g-page g-done">
       <header className="g-head">
-        <span className="g-k">готово · запись № {no}</span>
+        <span className="g-k">Готово · запись № {no}</span>
         <h2 className="g-title">Вы записаны!</h2>
       </header>
       <div className="g-poster">
+        <Blob className="g-blob-poster" />
         <div className="g-poster-meta">
-          <span>@{b.slug}</span>
+          <span>{b.name}</span>
           <span>{date}</span>
         </div>
-        {first && (
-          <div className="g-script g-poster-name" style={{ fontSize: Math.min(72, scriptSize(first) + 8) }}>
-            {first}
-          </div>
-        )}
+        {first && <div className="g-poster-name">{first},</div>}
+        <div className="g-poster-lead">ждём вас</div>
         <div className="g-poster-when">
           <span>{weekday}</span>
           <span>{fmtTime(at, tz)}</span>
@@ -661,13 +724,12 @@ function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at
           <span>{p.service.title}</span>
           {s.address && <span>{s.address}</span>}
         </div>
-        <div className="g-script g-poster-sign">до встречи</div>
         <div className="g-poster-foot">
           <Barcode seed={`${b.slug}${no}`} />
-          <span className="g-k">
-            {b.name}
+          <span>
+            Запись № {no}
             <br />
-            запись № {no}
+            онлайн, без звонков
           </span>
         </div>
       </div>
@@ -678,7 +740,7 @@ function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at
       <div className="g-done-actions">
         {shareUrl && (
           <button className="g-cta" onClick={() => shareLink(shareUrl, `${b.name} — запись онлайн, без звонков:`)}>
-            <span>позвать с собой</span>
+            <span>Позвать с собой</span>
           </button>
         )}
         <button className="g-ghost" onClick={p.onMy}>
@@ -715,18 +777,16 @@ function TimePicker(p: {
 
   const slots = data[p.day ?? days[0]] ?? [];
   const groups: [string, Slot[]][] = [
-    ["утро", slots.filter((s) => s.label < "12:00")],
-    ["день", slots.filter((s) => s.label >= "12:00" && s.label < "17:00")],
-    ["вечер", slots.filter((s) => s.label >= "17:00")],
+    ["Утро", slots.filter((s) => s.label < "12:00")],
+    ["День", slots.filter((s) => s.label >= "12:00" && s.label < "17:00")],
+    ["Вечер", slots.filter((s) => s.label >= "17:00")],
   ];
-  const len = `${Math.floor(p.length / 60)}:${pad2(p.length % 60)}`;
-  let n = 0;
   return (
     <>
       <div className="days g-days">
         {days.map((d) => (
           <button key={d} className={`day ${d === p.day ? "day-on" : ""}`} onClick={() => p.setDay(d)}>
-            <span className="day-wd">{dayWord(d, p.tz).replace(/ \d+$/, "")}</span>
+            <span className="day-wd">{dayWord(d, p.tz).replace(/ \d+$/, "").replace(/^./, (c) => c.toUpperCase())}</span>
             <span className="day-n">{Number(d.slice(8))}</span>
           </button>
         ))}
@@ -737,28 +797,27 @@ function TimePicker(p: {
           .map(([title, list]) => (
             <div key={title} className="g-side">
               <div className="g-side-title">
-                <span className="g-k">{title}</span>
-                <span className="g-k">{list.length} {plural(list.length, "окно", "окна", "окон")}</span>
+                <span>{title}</span>
+                <span className="g-k">
+                  {list.length} {plural(list.length, "окно", "окна", "окон")}
+                </span>
               </div>
-              {list.map((sl) => {
-                n += 1;
-                return (
+              <div className="g-slots">
+                {list.map((sl) => (
                   <button
                     key={sl.start}
                     className={`slot g-slot ${picked === sl.start ? "g-slot-on" : ""}`}
                     onClick={() => {
                       if (picked) return;
                       setPicked(sl.start);
-                      // короткая вспышка выбранного «трека», потом — к контактам
+                      // короткая вспышка выбранного времени, потом — к контактам
                       setTimeout(() => p.onPick(sl), 170);
                     }}
                   >
-                    <span className="g-n">{pad2(n)}</span>
-                    <span className="g-slot-time">{sl.label}</span>
-                    <span className="g-slot-len">{picked === sl.start ? "▸ выбрано" : len}</span>
+                    {sl.label}
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
           ))}
       </div>
@@ -796,42 +855,40 @@ export function MyBookings(p: { boot: Boot; onBack: () => void; onBook: () => vo
   return (
     <div className="page g-page">
       <BackLink onBack={p.onBack} />
-      <StepHead label={b.name.toLowerCase()} title="Мои записи" />
+      <StepHead label={b.name} title="Мои записи" />
       {error && <ErrorBox error={error} onRetry={reload} />}
       {!data && !error && <Spinner />}
       {data && !upcoming.length && (
         <div className="g-empty">
-          <span className="g-script">пока пусто</span>
+          <Blob className="g-blob-small" />
+          <b>Пока пусто</b>
           <p>Активных записей нет. Выберите время — займёт минуту.</p>
           <button className="g-cta" onClick={p.onBook}>
-            <span>записаться</span>
+            <span>Записаться</span>
           </button>
         </div>
       )}
       {upcoming.length > 0 && (
         <section className="section g-sec">
-          <div className="g-sec-head">
-            <h2>Предстоящие</h2>
-            <span className="g-k">{upcoming.length}</span>
-          </div>
+          <h2 className="g-sec-title g-sec-title-static">Предстоящие</h2>
           {upcoming.map((bk) => (
-            <div key={bk.id} className="g-ticket">
-              <div className="g-ticket-date">
+            <div key={bk.id} className="g-mini g-mini-static">
+              <span className="g-thumb">
                 <b>{dd(bk.starts_at)}</b>
                 <span>{dm(bk.starts_at)}</span>
-              </div>
-              <div className="g-ticket-main">
-                <span className="g-ticket-time">
-                  {fmtWeekday(bk.starts_at, tz)} · {fmtTime(bk.starts_at, tz)}
+              </span>
+              <span className="g-mini-main">
+                <span className="g-mini-title">
+                  {fmtWeekday(bk.starts_at, tz).replace(/^./, (c) => c.toUpperCase())}, {fmtTime(bk.starts_at, tz)}
                 </span>
-                <span className="g-ticket-what">
+                <span className="g-mini-sub">
                   {bk.service_title}
                   {bk.price ? ` · ${rub(bk.price)}` : ""}
                 </span>
-                <button className="g-ticket-cancel" onClick={() => cancel(bk)}>
-                  Отменить
-                </button>
-              </div>
+              </span>
+              <button className="g-pill" onClick={() => cancel(bk)}>
+                Отменить
+              </button>
             </div>
           ))}
           <p className="g-note">Отменить онлайн можно не позже чем за {b.settings.cancelHours} ч.</p>
@@ -839,16 +896,13 @@ export function MyBookings(p: { boot: Boot; onBack: () => void; onBook: () => vo
       )}
       {past.length > 0 && (
         <section className="section g-sec">
-          <div className="g-sec-head">
-            <h2>История</h2>
-          </div>
-          <div className="g-list">
-            {past.map((bk, i) => (
-              <div key={bk.id} className="g-track g-track-static">
-                <span className="g-n">{pad2(i + 1)}</span>
-                <span className="g-track-main">
-                  <span className="g-track-title">{bk.service_title}</span>
-                  <span className="g-track-sub">
+          <h2 className="g-sec-title g-sec-title-static">История</h2>
+          <div className="g-group">
+            {past.map((bk) => (
+              <div key={bk.id} className="g-item g-item-static">
+                <span className="g-item-main">
+                  <span className="g-item-title">{bk.service_title}</span>
+                  <span className="g-item-sub">
                     {fmtDay(bk.starts_at, tz)} · {fmtTime(bk.starts_at, tz)}
                   </span>
                 </span>
@@ -875,17 +929,17 @@ export function StatusBadge({ status, by }: { status: Booking["status"]; by?: Bo
 
 export type ClientTab = "home" | "portfolio" | "book" | "my";
 
-/** Нижняя панель клиента: Главная · Работы · Запись · Мои записи — точка у текущей. */
+/** Нижняя панель клиента: иконки с мелкими подписями, текущая вкладка — ярче. */
 export function ClientTabBar(p: { active: ClientTab | null; hasWorks: boolean; onGo: (t: ClientTab) => void }) {
-  const items: [ClientTab, string][] = [
-    ["home", "Главная"],
-    ...(p.hasWorks ? ([["portfolio", "Работы"]] as [ClientTab, string][]) : []),
-    ["book", "Запись"],
-    ["my", "Мои записи"],
+  const items: [ClientTab, string, string][] = [
+    ["home", "Главная", "home"],
+    ...(p.hasWorks ? ([["portfolio", "Работы", "photo"]] as [ClientTab, string, string][]) : []),
+    ["book", "Запись", "calendar"],
+    ["my", "Мои записи", "list"],
   ];
   return (
     <nav className="tabbar g-tabbar">
-      {items.map(([t, label]) => (
+      {items.map(([t, label, icon]) => (
         <button
           key={t}
           className={`tabbar-item ${p.active === t ? "tabbar-on" : ""}`}
@@ -895,7 +949,7 @@ export function ClientTabBar(p: { active: ClientTab | null; hasWorks: boolean; o
             p.onGo(t);
           }}
         >
-          <i className="g-tab-dot" aria-hidden />
+          <Icon name={icon as any} size={24} />
           <span>{label}</span>
         </button>
       ))}

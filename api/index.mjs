@@ -537,6 +537,7 @@ var init_templates = __esm({
       bannerFileId: "",
       bannerColor: "",
       palette: "rose",
+      paletteMode: "dark",
       ...over
     });
     TEMPLATES = [
@@ -2365,7 +2366,8 @@ var SETTINGS_KEYS = [
   "requirePhone",
   "remind2h",
   "fields",
-  "palette"
+  "palette",
+  "paletteMode"
 ];
 async function saveSettings(ctx, p) {
   const incoming = p.settings ?? {};
@@ -2391,6 +2393,7 @@ async function saveSettings(ctx, p) {
   }
   if (settings.accent && !/^#[0-9a-f]{6}$/i.test(settings.accent)) delete settings.accent;
   if ("palette" in settings && !isPalette(settings.palette)) delete settings.palette;
+  if ("paletteMode" in settings && settings.paletteMode !== "dark" && settings.paletteMode !== "light") delete settings.paletteMode;
   const b = await updateBusiness(db(), ctx.business.id, {
     name: p.name ? str(p.name, 80) : void 0,
     timezone: p.timezone ? str(p.timezone, 60) : void 0,

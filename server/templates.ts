@@ -31,6 +31,8 @@ export interface BusinessSettings {
   bannerColor: string;
   /** Цвет страницы («свечение»): rose | lilac | mint | amber | sky | graphite | banner | #rrggbb */
   palette: string;
+  /** Тёмная (по умолчанию, как Яндекс Музыка) или светлая страница */
+  paletteMode: "dark" | "light";
 }
 
 export interface Template {
@@ -67,6 +69,7 @@ const baseSettings = (over: Partial<BusinessSettings>): BusinessSettings => ({
   bannerFileId: "",
   bannerColor: "",
   palette: "rose",
+  paletteMode: "dark",
   ...over,
 });
 

@@ -7,20 +7,16 @@ import { glowFor, glowTheme } from "./palette";
 import { Landing, SuperPanel } from "./platform";
 import type { Boot } from "./types";
 import { ErrorBox, Spinner } from "./ui";
-// Шрифты «Розового света» встроены в сборку (кириллица + латиница; браузер качает только нужные начертания):
-// три шрифта: Unbounded — заголовки и кнопки, Onest — текст, цифры и подписи, Great Vibes — имя мастера и постер.
-import "@fontsource/unbounded/cyrillic-500.css";
-import "@fontsource/unbounded/latin-500.css";
-import "@fontsource/unbounded/cyrillic-700.css";
-import "@fontsource/unbounded/latin-700.css";
-import "@fontsource/onest/cyrillic-400.css";
-import "@fontsource/onest/latin-400.css";
-import "@fontsource/onest/cyrillic-500.css";
-import "@fontsource/onest/latin-500.css";
-import "@fontsource/onest/cyrillic-600.css";
-import "@fontsource/onest/latin-600.css";
-import "@fontsource/great-vibes/cyrillic-400.css";
-import "@fontsource/great-vibes/latin-400.css";
+// Один шрифт — Golos Text (ParaType), как пара YS Display/YS Text у Яндекса: заголовки 900 плотно, текст 400–500.
+// Встроен в сборку (кириллица + латиница), браузер качает только нужные начертания.
+import "@fontsource/golos-text/cyrillic-400.css";
+import "@fontsource/golos-text/latin-400.css";
+import "@fontsource/golos-text/cyrillic-500.css";
+import "@fontsource/golos-text/latin-500.css";
+import "@fontsource/golos-text/cyrillic-700.css";
+import "@fontsource/golos-text/latin-700.css";
+import "@fontsource/golos-text/cyrillic-900.css";
+import "@fontsource/golos-text/latin-900.css";
 import "./styles.css";
 
 type Route =
@@ -31,7 +27,7 @@ type Route =
   | { name: "admin"; businessId: number }
   | { name: "super" };
 
-type ThemeBiz = { id: number; settings: { accent?: string; bannerFileId?: string; bannerColor?: string; palette?: string } };
+type ThemeBiz = { id: number; settings: { accent?: string; bannerFileId?: string; bannerColor?: string; palette?: string; paletteMode?: string } };
 
 function initialRoute(boot: Boot): Route {
   const view = urlParams.get("view");
@@ -80,7 +76,8 @@ function App() {
   // палитра «свечения», которую выбрал мастер (по умолчанию — розовая); «из обложки» — от цвета баннера
   const tone = useBannerTone(themeBiz?.settings.palette === "banner" ? themeBiz : null);
   const palette = themeBiz ? themeBiz.settings.palette || "rose" : "";
-  const theme = useMemo(() => (palette ? glowTheme(glowFor(palette, tone)) : null), [palette, tone]);
+  const mode = themeBiz?.settings.paletteMode || "dark";
+  const theme = useMemo(() => (palette ? glowTheme(glowFor(palette, mode, tone)) : null), [palette, mode, tone]);
   useLayoutEffect(() => applyTheme(theme, themeBiz?.settings.accent), [theme, themeBiz?.settings.accent]);
 
   if (error) return <ErrorBox error={error} onRetry={() => load().then((b) => b && setStack([initialRoute(b)]))} />;
