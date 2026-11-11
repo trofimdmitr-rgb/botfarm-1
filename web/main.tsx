@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { AdminPanel } from "./admin";
 import { BookFlow, BusinessHome, ClientTabBar, type ClientTab, MyBookings, PortfolioScreen } from "./client";
 import { api, applyTheme, enableDragScroll, ensureDevAuth, inMax, inTelegram, ThemeContext, urlParams, useBannerTone, WA } from "./lib";
+import { LiveBackground, Screen } from "./motion";
 import { glowFor, glowTheme } from "./palette";
 import { Landing, SuperPanel } from "./platform";
 import type { Boot } from "./types";
@@ -102,24 +103,28 @@ function App() {
     } else setStack([{ name: "home" }, t === "book" ? { name: "book", n: Date.now() } : { name: t }]);
   };
   const showTabs = !!biz && !!clientTab;
+  // свайп влево/вправо между вкладками клиента — в том же порядке, что на нижней панели
+  const tabOrder: ClientTab[] = biz ? ["home", ...(biz.portfolio.length ? (["portfolio"] as ClientTab[]) : []), "book", "my"] : [];
+  const tabIdx = clientTab ? tabOrder.indexOf(clientTab) : -1;
+  const swipe =
+    showTabs
+      ? {
+          prev: tabIdx > 0 ? () => goTab(tabOrder[tabIdx - 1]) : null,
+          next: tabIdx >= 0 && tabIdx < tabOrder.length - 1 ? () => goTab(tabOrder[tabIdx + 1]) : null,
+        }
+      : undefined;
+  const routeKey = `${stack.length}:${JSON.stringify(route)}`;
 
   return (
     <ThemeContext.Provider value={theme}>
       {/* ключ по маршруту: при переходе экран монтируется заново и проигрывает появление */}
-      <div className="screen" key={`${stack.length}:${JSON.stringify(route)}`}>
+      <Screen key={routeKey} routeKey={routeKey} glow={!!theme?.glow && showTabs} swipe={swipe}>
         {screen(boot)}
-      </div>
+      </Screen>
       {/* закреплённый мягкий переход под шапкой Telegram: при прокрутке содержимое уходит в цвет шапки без шва */}
       {theme && <div className="top-fade" aria-hidden />}
       {/* мягкий свет и зерно за экранами клиента (в панели мастера — спокойный фон без них) */}
-      {theme && showTabs && (
-        <div className="g-light" aria-hidden>
-          <i />
-          <i />
-          <i />
-          <i />
-        </div>
-      )}
+      {theme && showTabs && <LiveBackground />}
       {showTabs && <ClientTabBar active={clientTab} hasWorks={biz.portfolio.length > 0} onGo={goTab} />}
     </ThemeContext.Provider>
   );

@@ -43,6 +43,61 @@ function nameSize(text: string): number {
   return Math.min(byWord, n <= 12 ? 76 : n <= 20 ? 60 : n <= 30 ? 48 : 38);
 }
 
+/** Фото проявляется плавно, когда загрузится (а не «выпрыгивает» по строкам). */
+function FadeImg(p: { src: string; alt?: string; className?: string; lazy?: boolean }) {
+  const [on, setOn] = useState(false);
+  return (
+    <img
+      ref={(el) => {
+        if (el?.complete && el.naturalWidth && !on) setOn(true);
+      }}
+      className={`g-fade ${on ? "is-on" : ""} ${p.className ?? ""}`}
+      src={p.src}
+      alt={p.alt ?? ""}
+      loading={p.lazy ? "lazy" : undefined}
+      onLoad={() => setOn(true)}
+    />
+  );
+}
+
+/** Заглушка на время загрузки: строки с мягким бликом в цветах страницы. */
+function Skeleton({ rows = 3, kind = "rows" }: { rows?: number; kind?: "rows" | "slots" }) {
+  return (
+    <div className={`g-skel g-skel-${kind}`} aria-label="Загружаю…" role="status">
+      {Array.from({ length: kind === "slots" ? rows * 3 : rows }, (_, i) => (
+        <i key={i} style={{ animationDelay: `${i * 0.06}s` }} />
+      ))}
+    </div>
+  );
+}
+
+/** Позвонить: tel: открывает звонилку; номер заодно копируется — если звонилка не открылась, его можно вставить. */
+function CallRow({ phone }: { phone: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <a
+      className="g-row-i g-call"
+      href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+      onClick={() => {
+        haptic();
+        try {
+          navigator.clipboard?.writeText(phone);
+        } catch {}
+        setTimeout(() => document.visibilityState === "visible" && setCopied(true), 1200);
+      }}
+    >
+      <span className="g-call-ico">
+        <Icon name="phone" size={18} />
+      </span>
+      <span className="g-row-i-main">
+        <span className="g-call-label">{copied ? "Номер скопирован — можно вставить" : "Позвонить"}</span>
+        <span className="g-call-num">{phone}</span>
+      </span>
+      <Icon name="arrow" size={16} />
+    </a>
+  );
+}
+
 /** Текучее пятно: три цветных эллипса медленно плывут и вращаются — форма как будто переливается. */
 function Blob({ className = "" }: { className?: string }) {
   return (
@@ -197,8 +252,8 @@ export function BusinessHome(p: {
       <div className="g-bg" aria-hidden>
         {banner && (
           <div className="cover g-cover" ref={coverRef}>
-            <img className="g-cover-img" src={banner} alt="" />
-            <img className="g-cover-blur" src={banner} alt="" />
+            <FadeImg className="g-cover-img" src={banner} />
+            <FadeImg className="g-cover-blur" src={banner} />
           </div>
         )}
         <div className="g-blob-wrap" ref={blobRef}>
@@ -207,7 +262,7 @@ export function BusinessHome(p: {
       </div>
 
       <header className="g-hero">
-        <h1 className="g-name" style={{ fontSize: nameSize(b.name) }}>
+        <h1 className="g-name g-shine" data-text={b.name} style={{ fontSize: nameSize(b.name) }}>
           {b.name}
         </h1>
         {s.description && <p className="g-lead">{s.description}</p>}
@@ -215,7 +270,7 @@ export function BusinessHome(p: {
 
       <div className="g-actions">
         <button
-          className="g-cta"
+          className="g-cta g-cta-shine"
           disabled={!open}
           onClick={() => {
             haptic();
@@ -252,13 +307,7 @@ export function BusinessHome(p: {
                 <Icon name="arrow" size={16} />
               </button>
             )}
-            {s.contactPhone && (
-              <a className="g-row-i" href={`tel:${s.contactPhone.replace(/[^\d+]/g, "")}`}>
-                <Icon name="phone" size={20} />
-                <span className="g-row-i-main">{s.contactPhone}</span>
-                <Icon name="arrow" size={16} />
-              </a>
-            )}
+            {s.contactPhone && <CallRow phone={s.contactPhone} />}
             {s.links.map((l) => (
               <button key={l.url} className="g-row-i" onClick={() => openLink(l.url)}>
                 <Icon name="link" size={20} />
@@ -278,7 +327,7 @@ export function BusinessHome(p: {
           <div className="home-works-row">
             {b.portfolio.slice(0, 8).map((ph, i) => (
               <button key={ph.id} className="home-work" onClick={() => p.onPortfolio(i)}>
-                <img src={photoUrl(ph.id)} alt={ph.caption} loading="lazy" />
+                <FadeImg src={photoUrl(ph.id)} alt={ph.caption} lazy />
               </button>
             ))}
           </div>
@@ -377,8 +426,8 @@ export function PortfolioScreen(p: { boot: Boot; onBack: () => void; open?: numb
       {!photos.length && <Empty title="Фото пока нет" />}
       <div className="gallery gallery-grid g-grid">
         {photos.map((ph, i) => (
-          <button key={ph.id} className="gallery-item" onClick={() => setOpen(i)}>
-            <img src={photoUrl(ph.id)} alt={ph.caption} loading="lazy" />
+          <button key={ph.id} className="gallery-item" onClick={() => setOpen(i)} style={{ animationDelay: `${Math.min(i, 12) * 0.04}s` }}>
+            <FadeImg src={photoUrl(ph.id)} alt={ph.caption} lazy />
           </button>
         ))}
       </div>
@@ -706,7 +755,9 @@ function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at
     <div className="page g-page g-done">
       <header className="g-head">
         <span className="g-k">Готово · запись № {no}</span>
-        <h2 className="g-title">Вы записаны!</h2>
+        <h2 className="g-title g-shine" data-text="Вы записаны!">
+          Вы записаны!
+        </h2>
       </header>
       <div className="g-poster">
         <Blob className="g-blob-poster" />
@@ -718,8 +769,10 @@ function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at
         <div className="g-poster-lead">ждём вас</div>
         <div className="g-poster-when">
           <span>{weekday}</span>
-          <span>{fmtTime(at, tz)}</span>
-        </div>
+          <span className="g-shine" data-text={fmtTime(at, tz)}>
+            {fmtTime(at, tz)}
+          </span>
+          </div>
         <div className="g-poster-what">
           <span>{p.service.title}</span>
           {s.address && <span>{s.address}</span>}
@@ -772,7 +825,7 @@ function TimePicker(p: {
   }, [days]);
 
   if (error) return <ErrorBox error={error} onRetry={reload} />;
-  if (!data) return <Spinner />;
+  if (!data) return <Skeleton rows={3} kind="slots" />;
   if (!days.length) return <Empty icon={<Icon name="clock" size={40} />} title="Свободного времени пока нет" text="Загляните позже или выберите другую услугу." />;
 
   const slots = data[p.day ?? days[0]] ?? [];
@@ -803,9 +856,10 @@ function TimePicker(p: {
                 </span>
               </div>
               <div className="g-slots">
-                {list.map((sl) => (
+                {list.map((sl, i) => (
                   <button
                     key={sl.start}
+                    style={{ animationDelay: `${Math.min(i, 9) * 0.025}s` }}
                     className={`slot g-slot ${picked === sl.start ? "g-slot-on" : ""}`}
                     onClick={() => {
                       if (picked) return;
@@ -857,7 +911,7 @@ export function MyBookings(p: { boot: Boot; onBack: () => void; onBook: () => vo
       <BackLink onBack={p.onBack} />
       <StepHead label={b.name} title="Мои записи" />
       {error && <ErrorBox error={error} onRetry={reload} />}
-      {!data && !error && <Spinner />}
+      {!data && !error && <Skeleton rows={3} />}
       {data && !upcoming.length && (
         <div className="g-empty">
           <Blob className="g-blob-small" />

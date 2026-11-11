@@ -361,7 +361,7 @@ export function makeTheme(tone: string): Theme {
   return { tone, light, vars, btn, btnText };
 }
 
-const THEME_KEYS = [...Object.keys(makeTheme("#808080").vars), "--glow-a", "--glow-b", "--glow-c", "--grain", "--surface", "--cta-bg2", "--tab-on"];
+const THEME_KEYS = [...Object.keys(makeTheme("#808080").vars), "--glow-a", "--glow-b", "--glow-c", "--grain", "--surface", "--cta-bg2", "--tab-on", "--shine", "--pattern", "--pattern-size"];
 
 /** Применить палитру ко всему приложению (null — вернуть тему Telegram). */
 export function applyTheme(theme: Theme | null, accent?: string) {

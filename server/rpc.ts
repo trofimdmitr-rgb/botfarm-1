@@ -380,7 +380,11 @@ async function removeTimeOff(ctx: BizCtx, p: P) {
 }
 
 /** Готовые палитры страницы мастера; кроме них — «из обложки» и свой цвет #rrggbb. */
-export const PALETTES = ["rose", "lilac", "mint", "amber", "sky", "graphite", "banner"];
+export const PALETTES = [
+  "rose", "lilac", "mint", "amber", "sky", "graphite", "banner", // яркие: тёмная или светлая
+  "meadow", "checker", "mintlilac", "dustyrose", "cranes", "waves", "peach", "tiger", "lemonade", "sakura", // светлые по референсам
+  "bw", // чёрно-белая
+];
 const isPalette = (v: unknown) => typeof v === "string" && (PALETTES.includes(v) || /^#[0-9a-f]{6}$/i.test(v));
 
 const SETTINGS_KEYS: (keyof BusinessSettings)[] = [

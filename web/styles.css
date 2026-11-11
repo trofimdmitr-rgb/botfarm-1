@@ -517,17 +517,27 @@ html.glow {
 }
 html.glow body { font-family: var(--f); background: transparent; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
 
-/* фон всех экранов клиента: мягкие пятна цвета мастера медленно плывут и «дышат» */
+/* живой фон всех экранов клиента: 5 пятен цвета палитры переливаются по всему экрану (северное сияние),
+   поверх — тихий узор палитры (клетка, звёзды, волны…), который при прокрутке едет медленнее текста */
 .g-light { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.g-light i { position: absolute; display: block; border-radius: 50%; will-change: transform, opacity; }
-.g-light i:nth-child(1) { left: -40vw; top: -20vh; width: 120vw; height: 120vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-a) 38%, transparent), transparent); animation: g-drift 18s ease-in-out infinite alternate, g-breath 9s ease-in-out infinite alternate; }
-.g-light i:nth-child(2) { right: -45vw; top: 35vh; width: 110vw; height: 110vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-b) 26%, transparent), transparent); animation: g-drift 22s ease-in-out infinite alternate-reverse, g-breath 12s 2s ease-in-out infinite alternate; }
-.g-light i:nth-child(3) { left: -25vw; bottom: -35vh; width: 100vw; height: 100vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-c) 28%, transparent), transparent); animation: g-drift 26s ease-in-out infinite alternate, g-breath 14s 5s ease-in-out infinite alternate; }
-.g-light i:nth-child(4) { display: none; }
-html:not(.glow-dark) .g-light i { opacity: 0.9; }
+.g-aurora { position: absolute; inset: -20vh -10vw; will-change: transform; }
+.g-aurora i { position: absolute; display: block; border-radius: 50%; will-change: transform, opacity; }
+.g-aurora i:nth-child(1) { left: -30vw; top: -10vh; width: 110vw; height: 110vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-a) 55%, transparent), transparent); animation: g-wander-1 16s ease-in-out infinite alternate, g-breath 7s ease-in-out infinite alternate; }
+.g-aurora i:nth-child(2) { right: -35vw; top: 20vh; width: 105vw; height: 105vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-b) 55%, transparent), transparent); animation: g-wander-2 19s ease-in-out infinite alternate, g-breath 9s 1s ease-in-out infinite alternate; }
+.g-aurora i:nth-child(3) { left: -20vw; top: 55vh; width: 100vw; height: 100vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-c) 55%, transparent), transparent); animation: g-wander-3 22s ease-in-out infinite alternate, g-breath 11s 2s ease-in-out infinite alternate; }
+.g-aurora i:nth-child(4) { right: -25vw; top: 85vh; width: 90vw; height: 90vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-a) 45%, transparent), transparent); animation: g-wander-2 25s 3s ease-in-out infinite alternate-reverse, g-breath 8s ease-in-out infinite alternate; }
+.g-aurora i:nth-child(5) { left: 10vw; top: 30vh; width: 80vw; height: 60vw; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-b) 40%, transparent), transparent); animation: g-wander-1 20s 2s ease-in-out infinite alternate-reverse, g-breath 10s 4s ease-in-out infinite alternate; }
+html.glow-dark .g-aurora { opacity: 0.75; }
+.g-pattern {
+  position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 2600px); will-change: transform;
+  background-image: var(--pattern); background-size: var(--pattern-size); opacity: 0.5;
+}
+html.glow-dark .g-pattern { opacity: 0.35; }
 .g-light::after { content: ""; position: absolute; inset: 0; background-image: var(--grain); background-size: 210px 210px; opacity: 0.25; }
-@keyframes g-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(10vw, 8vh, 0) scale(1.18); } }
-@keyframes g-breath { from { opacity: 1; } to { opacity: 0.45; } }
+@keyframes g-wander-1 { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(18vw, 10vh, 0) scale(1.2); } 100% { transform: translate3d(-6vw, 18vh, 0) scale(0.95); } }
+@keyframes g-wander-2 { 0% { transform: translate3d(0, 0, 0) scale(1.1); } 50% { transform: translate3d(-20vw, -8vh, 0) scale(0.9); } 100% { transform: translate3d(-8vw, 12vh, 0) scale(1.2); } }
+@keyframes g-wander-3 { 0% { transform: translate3d(0, 0, 0) scale(0.9); } 50% { transform: translate3d(22vw, -14vh, 0) scale(1.15); } 100% { transform: translate3d(8vw, 6vh, 0) scale(1); } }
+@keyframes g-breath { from { opacity: 1; } to { opacity: 0.5; } }
 
 /* текучее пятно за именем: три эллипса разных цветов плывут, вращаются и меняют масштаб — форма переливается */
 .g-blob-wrap { position: absolute; left: 50%; top: -10px; width: 150vw; max-width: 760px; height: 470px; transform: translate3d(-50%, 0, 0); pointer-events: none; z-index: 0; }
@@ -795,6 +805,9 @@ html.glow .page-title, html.glow .admin-name { font-family: var(--f); font-weigh
 
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 12px 12px 4px; padding: 4px; border-radius: 14px; background: var(--soft); }
 .mode-switch button { min-height: 40px; border: 0; border-radius: 10px; background: none; color: var(--text); font-size: 15px; font-weight: 500; cursor: pointer; }
+.mode-switch.mode-off { opacity: 0.45; }
+.swatch-group { margin: 12px 16px 0; font-size: 13px; font-weight: 600; color: var(--sub); }
+.swatch-note { margin: 6px 16px 0; font-size: 13px; color: var(--sub); }
 .mode-switch .mode-on { background: var(--card); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); font-weight: 700; }
 
 /* выбор цвета страницы в настройках */
@@ -815,3 +828,70 @@ html.glow .page-title, html.glow .admin-name { font-family: var(--f); font-weigh
 .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
 .banner-drop { position: relative; border-radius: var(--radius); transition: box-shadow 0.15s; }
 .banner-drop-over { box-shadow: 0 0 0 2px var(--text) inset; }
+
+/* ---------- движение: блеск, звонок, загрузка, переходы ---------- */
+
+/* блеск на главных словах: копия текста поверх (через data-text), по ней раз в ~6 с пробегает отблеск */
+.g-shine { position: relative; }
+.g-shine::after {
+  content: attr(data-text); position: absolute; inset: 0; pointer-events: none; color: transparent; white-space: inherit;
+  background: linear-gradient(105deg, transparent 38%, var(--shine) 50%, transparent 62%) no-repeat;
+  background-size: 280% 100%; background-position: 160% 0;
+  -webkit-background-clip: text; background-clip: text;
+  animation: g-shine 6.5s 1.4s ease-in-out infinite;
+}
+@keyframes g-shine { 0% { background-position: 160% 0; } 22%, 100% { background-position: -60% 0; } }
+.g-poster-when .g-shine::after { animation-delay: 1.2s; }
+.g-title.g-shine::after { animation-delay: 0.6s; }
+
+/* блеск по кнопке «Записаться»: светлая полоса проходит раз в ~5 с */
+.g-cta-shine { position: relative; overflow: hidden; isolation: isolate; }
+.g-cta-shine::after {
+  content: ""; position: absolute; top: -20%; bottom: -20%; left: -40%; width: 30%; z-index: -1; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, #ffffff 55%, transparent), transparent);
+  transform: skewX(-20deg) translateX(0); animation: g-sweep 5.2s 2s ease-in-out infinite;
+}
+@keyframes g-sweep { 0% { transform: skewX(-20deg) translateX(0); } 28%, 100% { transform: skewX(-20deg) translateX(560%); } }
+
+/* позвонить: круглая иконка цвета кнопки с тихой волной-пульсом */
+.g-call { grid-template-columns: 40px minmax(0, 1fr) auto; min-height: 66px; }
+.g-call-ico {
+  position: relative; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--cta-bg); color: var(--cta-text);
+}
+.g-call-ico::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--cta-bg);
+  animation: g-ring 2.8s 1s ease-out infinite;
+}
+@keyframes g-ring { 0% { transform: scale(1); opacity: 0.7; } 70%, 100% { transform: scale(1.7); opacity: 0; } }
+.g-row-i.g-call .g-call-ico .icon { color: inherit; }
+.g-row-i-main:has(.g-call-label) { display: flex; flex-direction: column; gap: 1px; }
+.g-call-label { font-size: 13px; color: var(--sub); font-weight: 500; }
+.g-call-num { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* загрузка: заглушки с бликом и плавное проявление фото */
+.g-skel { display: flex; flex-direction: column; gap: 10px; padding: 8px 16px; }
+.g-skel i { display: block; height: 64px; border-radius: 18px; background: var(--tile); position: relative; overflow: hidden; animation: fade 0.4s both; }
+.g-skel-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-top: 50px; }
+.g-skel-slots i { height: 54px; }
+.g-skel i::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 9%, transparent), transparent);
+  animation: g-skel 1.3s ease-in-out infinite;
+}
+@keyframes g-skel { to { transform: translateX(100%); } }
+.g-fade { opacity: 0; transition: opacity 0.7s ease, filter 0.9s ease; filter: blur(8px); }
+.g-fade.is-on { opacity: 1; filter: none; }
+.g-cover-blur.g-fade.is-on { filter: blur(12px) saturate(1.1); }
+.g-page .g-slot { animation: g-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes g-pop { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+.g-grid .gallery-item { animation: g-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+
+/* переход между экранами: новый экран проявляется из затемнения; после свайпа — ещё и въезжает с нужной стороны */
+.g-veil { position: fixed; inset: 0; z-index: 8; pointer-events: none; background: #000; animation: g-veil 0.55s cubic-bezier(0.4, 0, 0.2, 1) both; }
+html:not(.glow-dark) .g-veil { background: color-mix(in srgb, var(--text) 55%, #000); }
+@keyframes g-veil { from { opacity: 0.55; } to { opacity: 0; } }
+.screen.g-enter-right { animation: g-from-right 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.screen.g-enter-left { animation: g-from-left 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes g-from-right { from { transform: translate3d(60px, 0, 0); opacity: 0.4; } to { transform: none; opacity: 1; } }
+@keyframes g-from-left { from { transform: translate3d(-60px, 0, 0); opacity: 0.4; } to { transform: none; opacity: 1; } }

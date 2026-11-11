@@ -2346,7 +2346,29 @@ async function removeTimeOff(ctx, p) {
   await db().query(`delete from time_off where id = $1 and business_id = $2`, [int(p.id, "id"), ctx.business.id]);
   return { ok: true };
 }
-var PALETTES = ["rose", "lilac", "mint", "amber", "sky", "graphite", "banner"];
+var PALETTES = [
+  "rose",
+  "lilac",
+  "mint",
+  "amber",
+  "sky",
+  "graphite",
+  "banner",
+  // яркие: тёмная или светлая
+  "meadow",
+  "checker",
+  "mintlilac",
+  "dustyrose",
+  "cranes",
+  "waves",
+  "peach",
+  "tiger",
+  "lemonade",
+  "sakura",
+  // светлые по референсам
+  "bw"
+  // чёрно-белая
+];
 var isPalette = (v) => typeof v === "string" && (PALETTES.includes(v) || /^#[0-9a-f]{6}$/i.test(v));
 var SETTINGS_KEYS = [
   "emoji",

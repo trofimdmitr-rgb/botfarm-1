@@ -15,7 +15,44 @@ export interface Glow {
   cta2: string;
   ctaText: string;
   surface: string; // карточки и плашки
+  pattern: Pattern; // тихий узор по всему фону (едет при прокрутке медленнее текста)
+  patternColor: string;
+  lightOnly?: boolean; // светлые палитры из референсов: режим «Тёмная» к ним не применяется
 }
+
+export type Pattern = "none" | "checker" | "stars" | "dots" | "waves" | "sparkles";
+
+/** Светлые палитры по референсам Антона (11.11): пастель, свой узор, своя кнопка. Всегда светлые. */
+export interface Pastel {
+  id: string;
+  label: string;
+  note: string; // откуда палитра — для подсказки в настройках
+  bg: string;
+  ink: string;
+  sub: string;
+  a: string;
+  b: string;
+  c: string;
+  cta: string;
+  cta2: string;
+  pattern: Pattern;
+  patternColor: string;
+}
+
+export const PASTELS: Pastel[] = [
+  { id: "meadow", label: "Луг", note: "розовый на траве", bg: "#e9eedb", ink: "#273013", sub: "#4c5733", a: "#f0a8e6", b: "#b8c98a", c: "#ffffff", cta: "#e98fd8", cta2: "#f2b0ea", pattern: "stars", patternColor: "#eba0df" },
+  { id: "checker", label: "Клетка", note: "дофаминовая клетка", bg: "#fdfcf7", ink: "#1c1c1e", sub: "#4a4a52", a: "#b9d8f7", b: "#f1aed0", c: "#fbf3a8", cta: "#f1aed0", cta2: "#fbf3a8", pattern: "checker", patternColor: "#dceafb" },
+  { id: "mintlilac", label: "Мята и сирень", note: "мята, сирень, стекло", bg: "#e4f3ee", ink: "#26332f", sub: "#46564f", a: "#c3b1ea", b: "#a7e2cd", c: "#f5f0ff", cta: "#b8a4ea", cta2: "#a7e2cd", pattern: "sparkles", patternColor: "#b9a6e6" },
+  { id: "dustyrose", label: "Пыльная роза", note: "роза, бирюза, слоновая кость", bg: "#f3ebde", ink: "#3b2430", sub: "#6a4a57", a: "#c55a87", b: "#42979a", c: "#f6d6e2", cta: "#b84f7c", cta2: "#c8648f", pattern: "waves", patternColor: "#9cc9c9" },
+  { id: "cranes", label: "Журавли", note: "серо-голубой с розой", bg: "#e8eef1", ink: "#1f3340", sub: "#44596a", a: "#80a9c6", b: "#be9ea4", c: "#90aa93", cta: "#527486", cta2: "#5f8193", pattern: "waves", patternColor: "#a9c3d6" },
+  { id: "waves", label: "Волны", note: "пастельные волны", bg: "#eff0fb", ink: "#262b52", sub: "#4a5080", a: "#a9bde8", b: "#f2b6d0", c: "#b4ecd2", cta: "#5f6fcc", cta2: "#7c6fd4", pattern: "waves", patternColor: "#c4cff0" },
+  { id: "peach", label: "Персик", note: "персик и сирень", bg: "#f8e4d8", ink: "#4a2a22", sub: "#74483c", a: "#f0a08a", b: "#c9b3dc", c: "#fff3e8", cta: "#f0a08a", cta2: "#f4b59f", pattern: "dots", patternColor: "#efb7a4" },
+  { id: "tiger", label: "Тигр", note: "красный на сером", bg: "#ede7ea", ink: "#36262d", sub: "#5e4852", a: "#ec6b6b", b: "#f4a77d", c: "#b8c0dc", cta: "#d63a45", cta2: "#e0573f", pattern: "stars", patternColor: "#f0a0a0" },
+  { id: "lemonade", label: "Лимонад", note: "лимон, роза, небо", bg: "#fffbe2", ink: "#2a2812", sub: "#57532c", a: "#f6e46a", b: "#f6a6c8", c: "#9ccbf2", cta: "#2a2812", cta2: "#4f4a22", pattern: "checker", patternColor: "#faf0a6" },
+  { id: "sakura", label: "Сакура", note: "розовый, мята, абрикос", bg: "#fce9f0", ink: "#4a1f33", sub: "#74405a", a: "#f39cbf", b: "#a8e6cf", c: "#ffd9b0", cta: "#f39cbf", cta2: "#f7b5cf", pattern: "sparkles", patternColor: "#f3a9c8" },
+];
+
+export const BW_ID = "bw";
 
 interface Color {
   id: string;
@@ -48,6 +85,21 @@ function colorFromHex(hex: string, id: string, label: string): Color {
 
 const DARK_BG = "#0b0b0d";
 
+function fromPastel(p: Pastel): Glow {
+  return {
+    id: p.id, label: p.label, dark: false, bg: p.bg, ink: p.ink, sub: p.sub, a: p.a, b: p.b, c: p.c,
+    cta: p.cta, cta2: p.cta2, ctaText: pickText([p.ink, "#ffffff"], [p.cta, p.cta2]), surface: mix(p.bg, 45, "#ffffff"),
+    pattern: p.pattern, patternColor: p.patternColor, lightOnly: true,
+  };
+}
+
+/** Чёрно-белая: в светлом режиме — белый фон и чёрный текст, в тёмном — наоборот. */
+function bw(dark: boolean): Glow {
+  return dark
+    ? { id: BW_ID, label: "Ч/Б", dark: true, bg: "#0b0b0b", ink: "#ffffff", sub: "#a8a8a8", a: "#6a6a6a", b: "#2e2e2e", c: "#8c8c8c", cta: "#ffffff", cta2: "#c8c8c8", ctaText: "#0b0b0b", surface: "#171717", pattern: "dots", patternColor: "#2c2c2c" }
+    : { id: BW_ID, label: "Ч/Б", dark: false, bg: "#f4f4f2", ink: "#111111", sub: "#4a4a4a", a: "#bdbdbd", b: "#e6e6e6", c: "#8a8a8a", cta: "#111111", cta2: "#3d3d3d", ctaText: "#ffffff", surface: "#ffffff", pattern: "dots", patternColor: "#d2d2d2" };
+}
+
 function build(c: Color, dark: boolean): Glow {
   const [a, b, cc] = c.vivid;
   if (dark) {
@@ -65,10 +117,12 @@ function build(c: Color, dark: boolean): Glow {
       cta2: b,
       ctaText: bestText(a, b),
       surface: "#17171b",
+      pattern: "none",
+      patternColor: "#000000",
     };
   }
   const { bg, ink, sub } = c.light;
-  return { id: c.id, label: c.label, dark: false, bg, ink, sub, a, b: shade(a, 0.2), c: b, cta: ink, cta2: shade(ink, 0.12), ctaText: bg, surface: mix(bg, 45, "#ffffff") };
+  return { id: c.id, label: c.label, dark: false, bg, ink, sub, a, b: shade(a, 0.2), c: b, cta: ink, cta2: shade(ink, 0.12), ctaText: bg, surface: mix(bg, 45, "#ffffff"), pattern: "none", patternColor: "#000000" };
 }
 
 /** Какая палитра у бизнеса. tone — цвет обложки (для «из обложки»). */
@@ -77,6 +131,9 @@ export function glowFor(palette: string | undefined, mode: string | undefined, t
   const dark = mode !== "light";
   const preset = COLORS.find((g) => g.id === p);
   if (preset) return build(preset, dark);
+  const pastel = PASTELS.find((g) => g.id === p);
+  if (pastel) return fromPastel(pastel);
+  if (p === BW_ID) return bw(dark);
   if (p === "banner" && tone) return build(colorFromHex(tone, "banner", "Из обложки"), dark);
   if (/^#[0-9a-f]{6}$/i.test(p)) return build(colorFromHex(p, p, "Свой цвет"), dark);
   return build(COLORS[0], dark);
@@ -116,8 +173,57 @@ export function glowVars(g: Glow): Record<string, string> {
     "--glow-a": g.a,
     "--glow-b": g.b,
     "--glow-c": g.c,
+    "--shine": g.dark ? mix(g.a, 85, "#ffffff") : "#ffffff",
+    "--pattern": patternImage(g.pattern, g.patternColor),
+    "--pattern-size": PATTERN_SIZE[g.pattern],
     "--grain": `url(${grainTile(g.dark ? "#ffffff" : g.ink)})`,
   };
+}
+
+// ---------- узоры фона: клетка, звёзды-вспышки, точки, волны (сэйгайха), искры ----------
+
+const PATTERN_SIZE: Record<Pattern, string> = { none: "1px 1px", checker: "72px 72px", stars: "260px 260px", dots: "28px 28px", waves: "56px 28px", sparkles: "180px 180px" };
+
+const svg = (w: number, h: number, body: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>${body}</svg>`)}")`;
+
+/** Звезда-вспышка с острыми лучами, как нарисованная от руки (референс с ягнятами). */
+function star(cx: number, cy: number, r: number, rays: number, rot: number, color: string): string {
+  const pts: string[] = [];
+  for (let i = 0; i < rays * 2; i++) {
+    const rr = i % 2 ? r * 0.22 : r * (0.8 + ((i * 37) % 5) / 12);
+    const ang = (Math.PI * i) / rays + rot;
+    pts.push(`${(cx + rr * Math.cos(ang)).toFixed(1)},${(cy + rr * Math.sin(ang)).toFixed(1)}`);
+  }
+  return `<polygon points='${pts.join(" ")}' fill='${color}'/>`;
+}
+
+function patternImage(kind: Pattern, color: string): string {
+  switch (kind) {
+    case "checker":
+      return `repeating-conic-gradient(${color} 0 25%, transparent 0 50%)`;
+    case "dots":
+      return `radial-gradient(${color} 2.2px, transparent 2.8px)`;
+    case "waves": {
+      // сэйгайха — японские волны из полукругов
+      const arcs = [22, 15, 8]
+        .map((r) => `<path d='M${28 - r} 28 a${r} ${r} 0 0 1 ${r * 2} 0' fill='none' stroke='${color}' stroke-width='2'/>`)
+        .join("");
+      const half = [22, 15, 8]
+        .map((r) => `<path d='M${-r} 14 a${r} ${r} 0 0 1 ${r * 2} 0 M${56 - r} 14 a${r} ${r} 0 0 1 ${r * 2} 0' fill='none' stroke='${color}' stroke-width='2'/>`)
+        .join("");
+      return svg(56, 28, half + arcs);
+    }
+    case "stars":
+      return svg(260, 260, star(50, 60, 34, 8, 0.2, color) + star(190, 170, 26, 7, 0.9, color) + star(120, 230, 12, 6, 0.4, color));
+    case "sparkles": {
+      const sp = (x: number, y: number, r: number) =>
+        `<path d='M${x} ${y - r} Q${x} ${y} ${x + r} ${y} Q${x} ${y} ${x} ${y + r} Q${x} ${y} ${x - r} ${y} Q${x} ${y} ${x} ${y - r}Z' fill='${color}'/>`;
+      return svg(180, 180, sp(40, 40, 12) + sp(130, 90, 8) + sp(70, 140, 6) + sp(160, 20, 5));
+    }
+    default:
+      return "none";
+  }
 }
 
 // ---------- зерно: маленькая плитка шума, рисуется один раз на цвет ----------
@@ -174,6 +280,16 @@ function bestText(...bgs: string[]): string {
   const black = Math.min(...bgs.map((b) => ratio(lum(b), lum(DARK_BG))));
   const white = Math.min(...bgs.map((b) => ratio(lum(b), 1)));
   return black >= white ? DARK_BG : "#ffffff";
+}
+
+/** Из нескольких цветов текста — тот, у которого худший контраст с фонами кнопки выше. */
+function pickText(texts: string[], bgs: string[]): string {
+  let best = texts[0], score = -1;
+  for (const t of texts) {
+    const sc = Math.min(...bgs.map((b) => ratio(lum(b), lum(t))));
+    if (sc > score) [best, score] = [t, sc];
+  }
+  return best;
 }
 
 function hsl(hex: string): [number, number, number] {
