@@ -161,6 +161,43 @@ describe("клиентский путь", () => {
     expect(((await call("boot", {}, as(302, "nogti-anny"))) as any).business.settings.iconStyle).toBe("duo");
   });
 
+  it("портфолио: подпись, мастер, альбом = услуга; фото мастера и логотип", async () => {
+    const B = { businessId: biz.id };
+    const img = Buffer.alloc(5000, 1).toString("base64");
+    const boot0: any = await call("boot", {}, as(300, "nogti-anny"));
+    const svc = boot0.business.services[0];
+    const master = boot0.business.staff[0];
+    const album: any = await call("admin.albumSave", { ...B, album: { title: "Маникюр", description: "Покрытие гель-лаком", serviceId: svc.id } });
+    const ph: any = await call("admin.portfolioAdd", { ...B, imageBase64: img, caption: "Нюд", staffId: master.id, albumId: album.id });
+    await call("admin.portfolioUpdate", { ...B, id: ph.id, caption: "Нюд с блёстками", staffId: master.id, albumId: album.id });
+    await call("admin.staffPhotoSet", { ...B, staffId: master.id, imageBase64: img });
+    await call("admin.logoSet", { ...B, imageBase64: "data:image/png;base64," + img });
+    await call("admin.saveSettings", { ...B, settings: { logoMode: "wordmark", logoFileId: "HACK" } });
+
+    const b: any = ((await call("boot", {}, as(300, "nogti-anny"))) as any).business;
+    expect(b.albums).toEqual([{ id: album.id, title: "Маникюр", description: "Покрытие гель-лаком", serviceId: svc.id }]);
+    expect(b.portfolio[0]).toMatchObject({ caption: "Нюд с блёстками", staffId: master.id, albumId: album.id });
+    expect(b.staff[0].photo).toBeTruthy();
+    expect(b.settings.logoFileId).toBe("FILE123");
+    expect(b.settings.logoMode).toBe("wordmark");
+
+    // чужой мастер/альбом/услуга не принимаются
+    await expect(call("admin.portfolioUpdate", { ...B, id: ph.id, staffId: 999999 })).rejects.toThrow("Не найдено");
+    await expect(call("admin.albumSave", { ...B, album: { title: "X", serviceId: 999999 } })).rejects.toThrow("Не найдено");
+    await expect(call("admin.albumSave", { ...B, album: { title: "X" } }, as(300))).rejects.toThrow("Нет доступа");
+
+    // удаление альбома оставляет фото в портфолио
+    await call("admin.albumRemove", { ...B, id: album.id });
+    const after: any = ((await call("boot", {}, as(300, "nogti-anny"))) as any).business;
+    expect(after.albums).toEqual([]);
+    expect(after.portfolio[0].albumId).toBeNull();
+    await call("admin.logoRemove", B);
+    await call("admin.staffPhotoRemove", { ...B, staffId: master.id });
+    const gone: any = ((await call("boot", {}, as(300, "nogti-anny"))) as any).business;
+    expect(gone.settings.logoFileId).toBe("");
+    expect(gone.staff[0].photo).toBe("");
+  });
+
   it("заблокированный бизнес не показывается клиентам", async () => {
     await call("super.setStatus", { businessId: biz.id, status: "blocked" });
     const boot: any = await call("boot", {}, as(301, "nogti-anny"));

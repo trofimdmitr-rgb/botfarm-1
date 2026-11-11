@@ -17,16 +17,19 @@ import {
   fmtWeekday,
   haptic,
   logClientError,
+  logoUrl,
   photoUrl,
+  staffPhotoUrl,
   rub,
   RU_TIMEZONES,
   shareLink,
   todayIn,
 } from "./lib";
 import { BW_ID, COLORS, type Glow, glowFor, glowVars, PASTELS } from "./palette";
-import type { Booking, PublicBusiness, Service, Settings, Staff } from "./types";
+import type { Album, Booking, PublicBusiness, Service, Settings, Staff, Work } from "./types";
 import { StatusBadge } from "./client";
 import {
+  Avatar,
   BackLink,
   Cell,
   Empty,
@@ -478,6 +481,16 @@ function SettingsEditor({ ov, reload, toast, onSaved }: Ctx & { onSaved: () => v
     <>
       <h2 className="page-title">Настройки</h2>
       <BannerEditor businessId={b.id} fileId={s.bannerFileId} onChange={(fileId) => { setS({ ...s, bannerFileId: fileId }); reload(); }} />
+      <LogoEditor
+        businessId={b.id}
+        name={name}
+        fileId={s.logoFileId}
+        mode={s.logoMode || "circle"}
+        onChange={(logoFileId, logoMode) => {
+          setS({ ...s, logoFileId, logoMode });
+          reload();
+        }}
+      />
       <PaletteEditor
         businessId={b.id}
         value={s.palette || "rose"}
@@ -631,6 +644,11 @@ function StaffEditor({ ov, reload, toast }: Ctx) {
     return (
       <>
         <h2 className="page-title">{edit.id ? edit.name : `Новый: ${L.staff.toLowerCase()}`}</h2>
+        {edit.id ? (
+          <StaffPhoto businessId={b.id} staff={edit as Staff} onChange={(photo_file_id) => (setEdit({ ...edit, photo_file_id }), reload())} />
+        ) : (
+          <p className="muted pad">Фото можно добавить после сохранения.</p>
+        )}
         <Section footer="Telegram ID можно узнать у @userinfobot. Тогда записи к этому мастеру будут приходить ему в личку.">
           <div className="form">
             <Field label="Имя" value={edit.name ?? ""} onChange={(v) => setEdit({ ...edit, name: v })} required />
@@ -684,7 +702,7 @@ function StaffEditor({ ov, reload, toast }: Ctx) {
       <h2 className="page-title">{L.staffPlural}</h2>
       <Section footer={ov.staff.length > 1 && !b.settings.chooseStaff ? "Чтобы клиенты выбирали мастера, включите это в настройках." : "График каждого — во вкладке «График»."}>
         {ov.staff.map((s) => (
-          <Cell key={s.id} before={<Icon name="user" size={20} />} title={s.name} subtitle={[s.description, s.active ? "" : "не принимает записи"].filter(Boolean).join(" · ")} onClick={() => setEdit(s)} chevron />
+          <Cell key={s.id} before={<Avatar src={staffPhotoUrl(s.id, s.photo_file_id)} name={s.name} size={36} />} title={s.name} subtitle={[s.description, s.active ? "" : "не принимает записи"].filter(Boolean).join(" · ")} onClick={() => setEdit(s)} chevron />
         ))}
       </Section>
       <MainButton text={`＋ Добавить`} onClick={() => setEdit({ active: true, sort: ov.staff.length })} />
@@ -696,9 +714,24 @@ function StaffEditor({ ov, reload, toast }: Ctx) {
 
 function PortfolioEditor({ ov }: Ctx) {
   const b = ov.business;
-  const { data, reload } = useLoad<{ id: number; caption: string }[]>(() => api("admin.portfolio", { businessId: b.id }), []);
+  const { data, reload } = useLoad<{ photos: Work[]; albums: Album[] }>(() => api("admin.portfolio", { businessId: b.id }), []);
   const [busy, setBusy] = useState(false);
-  const photos = data ?? [];
+  // фильтры: что показываем и куда лягут новые фото
+  const [albumF, setAlbumF] = useState<number | "none" | null>(null);
+  const [staffF, setStaffF] = useState<number | null>(null);
+  const [photo, setPhoto] = useState<Work | null>(null);
+  const [album, setAlbum] = useState<Partial<Album> | null>(null);
+  const photos = data?.photos ?? [];
+  const albums = data?.albums ?? [];
+  const staff = ov.staff.filter((x) => x.active !== false || photos.some((ph) => ph.staffId === x.id));
+  const multiStaff = staff.length > 1;
+  const svcTitle = (id: number | null) => ov.services.find((x) => x.id === id)?.title;
+  const shown = photos.filter(
+    (ph) => (albumF === null || (albumF === "none" ? ph.albumId === null : ph.albumId === albumF)) && (staffF === null || ph.staffId === staffF),
+  );
+  const target = [albumF && albumF !== "none" ? `альбом «${albums.find((a) => a.id === albumF)?.title}»` : "", staffF ? staff.find((x) => x.id === staffF)?.name : ""]
+    .filter(Boolean)
+    .join(" · ");
 
   const upload = async (files: File[]) => {
     if (!files.length || busy) return;
@@ -708,7 +741,12 @@ function PortfolioEditor({ ov }: Ctx) {
       for (const f of files.slice(0, 10)) {
         cur = f;
         const imageBase64 = await compressImage(f);
-        await api("admin.portfolioAdd", { businessId: b.id, imageBase64 });
+        await api("admin.portfolioAdd", {
+          businessId: b.id,
+          imageBase64,
+          albumId: typeof albumF === "number" ? albumF : null,
+          staffId: staffF ?? (staff.length === 1 ? staff[0].id : null),
+        });
       }
       haptic("success");
       reload();
@@ -722,35 +760,185 @@ function PortfolioEditor({ ov }: Ctx) {
   };
   const pick = useImagePick(upload, true);
 
+  if (photo) return <WorkEditor ov={ov} photo={photo} albums={albums} staff={staff} onDone={() => (setPhoto(null), reload())} />;
+  if (album) return <AlbumEditor ov={ov} album={album} count={photos.filter((ph) => ph.albumId === album.id).length} onDone={(id) => (setAlbum(null), id !== undefined && setAlbumF(id), reload())} />;
+
   return (
     <>
       <h2 className="page-title">Портфолио</h2>
-      <p className="muted pad">Фото хранятся в Telegram — бесплатно и без ограничений по месту. До 60 фото.</p>
+      <p className="muted pad">
+        Подпишите фото, отметьте мастера и соберите работы в альбомы. Альбом, привязанный к услуге, клиент увидит при записи как «Примеры работ». До 150 фото.
+      </p>
+
+      <Section title="Альбомы" footer={albums.length ? "Нажмите на альбом, чтобы изменить название, описание или услугу." : "Например: «Маникюр» с описанием и фото — к услуге «Маникюр с покрытием»."}>
+        {albums.map((a) => {
+          const first = photos.find((ph) => ph.albumId === a.id);
+          const n = photos.filter((ph) => ph.albumId === a.id).length;
+          return (
+            <Cell
+              key={a.id}
+              before={first ? <img className="cell-thumb" src={photoUrl(first.id)} alt="" /> : <span className="cell-thumb cell-thumb-empty"><Icon name="photo" size={18} /></span>}
+              title={a.title}
+              subtitle={`${svcTitle(a.serviceId) ? `к услуге «${svcTitle(a.serviceId)}»` : "без услуги"} · ${n} фото`}
+              onClick={() => setAlbum(a)}
+              chevron
+            />
+          );
+        })}
+        <Cell before={<Icon name="plus" size={20} />} title="Новый альбом" onClick={() => setAlbum({ title: "", description: "", serviceId: null })} />
+      </Section>
+
+      {(albums.length > 0 || multiStaff) && photos.length > 0 && (
+        <div className="chips g-noswipe">
+          <button className={`chip ${albumF === null ? "chip-on" : ""}`} onClick={() => setAlbumF(null)}>
+            Все · {photos.length}
+          </button>
+          {albums.map((a) => (
+            <button key={a.id} className={`chip ${albumF === a.id ? "chip-on" : ""}`} onClick={() => setAlbumF(albumF === a.id ? null : a.id)}>
+              {a.title}
+            </button>
+          ))}
+          {albums.length > 0 && photos.some((ph) => ph.albumId === null) && (
+            <button className={`chip ${albumF === "none" ? "chip-on" : ""}`} onClick={() => setAlbumF(albumF === "none" ? null : "none")}>
+              Без альбома
+            </button>
+          )}
+        </div>
+      )}
+      {multiStaff && photos.length > 0 && (
+        <div className="chips g-noswipe">
+          {staff.map((st) => (
+            <button key={st.id} className={`chip chip-ava ${staffF === st.id ? "chip-on" : ""}`} onClick={() => setStaffF(staffF === st.id ? null : st.id)}>
+              <Avatar src={staffPhotoUrl(st.id, st.photo_file_id)} name={st.name} size={24} />
+              {st.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className={`banner-drop ${pick.over ? "banner-drop-over" : ""}`} {...pick.drop}>
         <button className="btn btn-primary btn-block upload" disabled={busy} onClick={pick.open}>
           {busy ? "Загружаю…" : "＋ Добавить фото"}
         </button>
+        {target && <div className="muted small upload-target">Добавятся в: {target}</div>}
         {pick.input}
       </div>
       {!data && <Spinner />}
       <div className="gallery gallery-grid">
-        {photos.map((ph) => (
-          <div key={ph.id} className="gallery-item">
+        {shown.map((ph) => (
+          <button key={ph.id} className="gallery-item gallery-edit" onClick={() => setPhoto(ph)}>
             <img src={photoUrl(ph.id)} alt="" loading="lazy" />
-            <button
-              className="gallery-del"
-              onClick={async () => {
-                if (!(await confirmMsg("Удалить фото из портфолио?"))) return;
-                await api("admin.portfolioRemove", { businessId: b.id, id: ph.id });
-                reload();
-              }}
-            >
-              <Icon name="close" size={16} />
-            </button>
-          </div>
+            {ph.caption ? <span className="gallery-cap">{ph.caption}</span> : <span className="gallery-cap gallery-cap-empty">＋ подпись</span>}
+          </button>
         ))}
       </div>
       {data && !photos.length && <Empty icon={<Icon name="photo" size={40} />} title="Пока пусто" text="Добавьте 6–12 лучших работ — так клиенты записываются охотнее." />}
+      {data && photos.length > 0 && !shown.length && <Empty title="Здесь пока нет фото" text="Добавьте фото кнопкой выше — они сразу попадут сюда." />}
+    </>
+  );
+}
+
+/** Одно фото: подпись, мастер, альбом, удалить. */
+function WorkEditor(p: { ov: Overview; photo: Work; albums: Album[]; staff: Staff[]; onDone: () => void }) {
+  const b = p.ov.business;
+  const [caption, setCaption] = useState(p.photo.caption);
+  const [staffId, setStaffId] = useState(p.photo.staffId ? String(p.photo.staffId) : "");
+  const [albumId, setAlbumId] = useState(p.photo.albumId ? String(p.photo.albumId) : "");
+  return (
+    <>
+      <h2 className="page-title">Фото</h2>
+      <div className="work-preview">
+        <img src={photoUrl(p.photo.id)} alt="" />
+      </div>
+      <Section footer="Подпись клиент увидит под фото, когда откроет его крупно.">
+        <div className="form">
+          <Field label="Подпись" value={caption} onChange={setCaption} multiline placeholder="Например: нюдовый маникюр с втиркой" />
+          {p.staff.length > 0 && <Select label="Чья работа" value={staffId} onChange={setStaffId} options={[["", "Не указано"], ...p.staff.map((x) => [String(x.id), x.name] as [string, string])]} />}
+          <Select label="Альбом" value={albumId} onChange={setAlbumId} options={[["", "Без альбома"], ...p.albums.map((a) => [String(a.id), a.title] as [string, string])]} />
+        </div>
+      </Section>
+      <Section>
+        <Cell
+          title="Удалить фото"
+          danger
+          onClick={async () => {
+            if (!(await confirmMsg("Удалить фото из портфолио?"))) return;
+            await api("admin.portfolioRemove", { businessId: b.id, id: p.photo.id });
+            p.onDone();
+          }}
+        />
+      </Section>
+      <div className="pad">
+        <button className="btn btn-secondary btn-block" onClick={p.onDone}>
+          Отмена
+        </button>
+      </div>
+      <MainButton
+        text="Сохранить"
+        onClick={async () => {
+          try {
+            await api("admin.portfolioUpdate", { businessId: b.id, id: p.photo.id, caption, staffId: staffId || null, albumId: albumId || null });
+            haptic("success");
+            p.onDone();
+          } catch (e: any) {
+            await alertMsg(e.message);
+          }
+        }}
+      />
+    </>
+  );
+}
+
+/** Альбом: название, описание и услуга, к которой он показывается как «Примеры работ». */
+function AlbumEditor(p: { ov: Overview; album: Partial<Album>; count: number; onDone: (openId?: number | null) => void }) {
+  const b = p.ov.business;
+  const [a, setA] = useState(p.album);
+  return (
+    <>
+      <h2 className="page-title">{a.id ? "Альбом" : "Новый альбом"}</h2>
+      <Section footer="Если выбрать услугу, клиент при записи на неё увидит фото этого альбома как «Примеры работ», а в «Работах» — описание и кнопку записи.">
+        <div className="form">
+          <Field label="Название" value={a.title ?? ""} onChange={(v) => setA({ ...a, title: v })} required placeholder="Маникюр" />
+          <Field label="Описание" value={a.description ?? ""} onChange={(v) => setA({ ...a, description: v })} multiline placeholder="Что входит, какие материалы, сколько держится" />
+          <Select
+            label="Услуга"
+            value={a.serviceId ? String(a.serviceId) : ""}
+            onChange={(v) => setA({ ...a, serviceId: v ? Number(v) : null })}
+            options={[["", "Без услуги"], ...p.ov.services.map((x) => [String(x.id), x.title] as [string, string])]}
+          />
+        </div>
+      </Section>
+      {a.id && (
+        <Section footer={p.count ? `Фото (${p.count}) останутся в портфолио, просто без альбома.` : undefined}>
+          <Cell
+            title="Удалить альбом"
+            danger
+            onClick={async () => {
+              if (!(await confirmMsg("Удалить альбом? Фото останутся в портфолио."))) return;
+              await api("admin.albumRemove", { businessId: b.id, id: a.id });
+              p.onDone(null);
+            }}
+          />
+        </Section>
+      )}
+      <div className="pad">
+        <button className="btn btn-secondary btn-block" onClick={() => p.onDone()}>
+          Отмена
+        </button>
+      </div>
+      <MainButton
+        text={a.id ? "Сохранить" : "Создать альбом"}
+        onClick={async () => {
+          try {
+            const res: any = await api("admin.albumSave", { businessId: b.id, album: a });
+            haptic("success");
+            // новый альбом сразу открываем фильтром — следующие фото лягут в него
+            p.onDone(a.id ? undefined : Number(res.id));
+          } catch (e: any) {
+            await alertMsg(e.message);
+          }
+        }}
+      />
     </>
   );
 }
@@ -778,7 +966,7 @@ function ClientsList({ ov }: Ctx) {
                 {c.name || "Без имени"}
               </a>
             }
-            subtitle={[c.phone, c.blocked_bot ? "заблокировал бота" : ""].filter(Boolean).join(" · ")}
+            subtitle={[c.phone, c.tg_ids?.length > 1 ? `${c.tg_ids.length} аккаунта, один номер` : "", c.blocked_bot ? "заблокировал бота" : ""].filter(Boolean).join(" · ")}
             after={<span className="muted small">{c.visits} зап.</span>}
           />
         ))}
@@ -942,6 +1130,138 @@ function useImagePick(onFiles: (files: File[]) => void, multiple = false) {
       },
     },
   };
+}
+
+/** Фото мастера: клиент видит его при выборе мастера, в «Работах» и на карточке «Вы записаны». */
+function StaffPhoto(p: { businessId: number; staff: Staff; onChange: (fileId: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const upload = async ([f]: File[]) => {
+    if (!f || busy) return;
+    setBusy(true);
+    try {
+      const imageBase64 = await compressImage(f, 800);
+      const res: any = await api("admin.staffPhotoSet", { businessId: p.businessId, staffId: p.staff.id, imageBase64 });
+      haptic("success");
+      p.onChange(res.photo);
+    } catch (e: any) {
+      logClientError("staffPhotoSet", e, f);
+      await alertMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const pick = useImagePick(upload);
+  const url = staffPhotoUrl(p.staff.id, p.staff.photo_file_id);
+  return (
+    <div className={`staff-photo banner-drop ${pick.over ? "banner-drop-over" : ""}`} {...pick.drop}>
+      <Avatar src={url} name={p.staff.name || "?"} size={88} />
+      <div className="staff-photo-side">
+        <div className="muted small">Фото видно клиенту при выборе мастера, в «Работах» и на карточке записи. Лучше портрет, лицо по центру.</div>
+        <div className="banner-actions">
+          <button className="btn btn-secondary btn-small" disabled={busy} onClick={pick.open}>
+            {busy ? "Загружаю…" : url ? "Заменить" : "＋ Фото"}
+          </button>
+          {url && (
+            <button
+              className="btn btn-danger btn-small"
+              onClick={async () => {
+                await api("admin.staffPhotoRemove", { businessId: p.businessId, staffId: p.staff.id });
+                p.onChange("");
+              }}
+            >
+              Убрать
+            </button>
+          )}
+        </div>
+      </div>
+      {pick.input}
+    </div>
+  );
+}
+
+/** Логотип: показывать кругом над названием или вместо названия. Применяется сразу. */
+function LogoEditor(p: { businessId: number; name: string; fileId?: string; mode: "circle" | "wordmark"; onChange: (fileId: string, mode: "circle" | "wordmark") => void }) {
+  const [busy, setBusy] = useState(false);
+  const url = logoUrl(p.businessId, p.fileId);
+  const upload = async ([f]: File[]) => {
+    if (!f || busy) return;
+    setBusy(true);
+    try {
+      const imageBase64 = await compressImage(f, 900, true);
+      const res: any = await api("admin.logoSet", { businessId: p.businessId, imageBase64 });
+      haptic("success");
+      p.onChange(res.settings.logoFileId, p.mode);
+    } catch (e: any) {
+      logClientError("logoSet", e, f);
+      await alertMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const setMode = async (mode: "circle" | "wordmark") => {
+    if (mode === p.mode) return;
+    haptic();
+    try {
+      await api("admin.saveSettings", { businessId: p.businessId, settings: { logoMode: mode } });
+      p.onChange(p.fileId ?? "", mode);
+    } catch (e: any) {
+      await alertMsg(e.message);
+    }
+  };
+  const pick = useImagePick(upload);
+  return (
+    <Section
+      title="Логотип"
+      footer="Лучше всего — PNG с прозрачным фоном. «Значок» — для круглого логотипа или фото, «Вместо названия» — для логотипа-надписи."
+    >
+      <div className={`banner-drop ${pick.over ? "banner-drop-over" : ""}`} {...pick.drop}>
+        {url && (
+          <div className="logo-modes">
+            {(
+              [
+                ["circle", "Значок над названием"],
+                ["wordmark", "Вместо названия"],
+              ] as const
+            ).map(([m, label]) => (
+              <button key={m} className={`logo-mode ${p.mode === m ? "on" : ""}`} onClick={() => setMode(m)} aria-pressed={p.mode === m}>
+                <span className="logo-mode-pv">
+                  {m === "circle" ? (
+                    <>
+                      <span className="logo-circle">
+                        <img src={url} alt="" />
+                      </span>
+                      <b>{p.name}</b>
+                    </>
+                  ) : (
+                    <img className="logo-word" src={url} alt="" />
+                  )}
+                </span>
+                <span className="logo-mode-label">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="banner-actions">
+          <button className="btn btn-secondary btn-small" disabled={busy} onClick={pick.open}>
+            {busy ? "Загружаю…" : url ? "Заменить логотип" : "＋ Загрузить логотип"}
+          </button>
+          {url && (
+            <button
+              className="btn btn-danger btn-small"
+              onClick={async () => {
+                if (!(await confirmMsg("Убрать логотип?"))) return;
+                await api("admin.logoRemove", { businessId: p.businessId });
+                p.onChange("", p.mode);
+              }}
+            >
+              Убрать
+            </button>
+          )}
+        </div>
+        {pick.input}
+      </div>
+    </Section>
+  );
 }
 
 function BannerEditor(p: { businessId: number; fileId?: string; onChange: (fileId: string) => void }) {

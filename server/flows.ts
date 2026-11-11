@@ -198,7 +198,7 @@ export async function onContact(uid: number, rawPhone: string): Promise<Reply | 
   try {
     const { rememberPhone, autoLink } = await import("./links.js");
     const { sendLinkOffers } = await import("./notify.js");
-    await rememberPhone(db(), uid, pc.phone);
+    await rememberPhone(db(), uid, pc.phone, true); // контакт прислал сам мессенджер — номер подтверждён
     const notices = await autoLink(db(), uid, pc.phone);
     linked = notices.length > 0;
     await sendLinkOffers(notices);

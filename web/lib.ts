@@ -203,6 +203,14 @@ export function duration(min: number): string {
 
 export const photoUrl = (id: number) => `/api/photo?id=${id}`;
 
+/** Фото мастера; v — метка версии (хвост file_id), без неё фото нет. */
+export const staffPhotoUrl = (staffId: number, v?: string | null) =>
+  v ? `/api/photo?staff=${staffId}&v=${encodeURIComponent(v.slice(-10))}` : null;
+
+/** Логотип салона. */
+export const logoUrl = (businessId: number, fileId?: string) =>
+  fileId ? `/api/photo?logo=${businessId}&v=${encodeURIComponent(fileId.slice(-12))}` : null;
+
 /** Баннер бизнеса; хвост file_id в адресе сбрасывает кэш при замене фото. */
 export const bannerUrl = (businessId: number, fileId?: string) =>
   fileId ? `/api/photo?banner=${businessId}&v=${encodeURIComponent(fileId.slice(-12))}` : null;
@@ -237,17 +245,21 @@ export async function decodeImage(file: File): Promise<{ src: CanvasImageSource;
 }
 
 /** Сжать фото в браузере перед загрузкой (≤max px по длинной стороне, JPEG). */
-export async function compressImage(file: File, max = 1600): Promise<string> {
+export async function compressImage(file: File, max = 1600, keepAlpha = false): Promise<string> {
   const { src, w, h } = await decodeImage(file);
   const scale = Math.min(1, max / Math.max(w, h));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(w * scale));
   canvas.height = Math.max(1, Math.round(h * scale));
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#ffffff"; // прозрачный PNG — на белом, а не на чёрном
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // логотип в PNG сохраняем с прозрачностью — он ляжет на любой цвет страницы
+  const alpha = keepAlpha && /png|webp|gif|svg/i.test(file.type || file.name);
+  if (!alpha) {
+    ctx.fillStyle = "#ffffff"; // прозрачный PNG — на белом, а не на чёрном
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
   ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.82);
+  return alpha ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.82);
 }
 
 /** Записать ошибку загрузки в логи сервера (без персональных данных) — чтобы видеть, что ломается на компьютерах. */

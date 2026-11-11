@@ -20,8 +20,13 @@ export async function personIds(db: Db, id: number): Promise<number[]> {
   return ids.length ? ids : [Number(id)];
 }
 
-export async function rememberPhone(db: Db, id: number, phone: string) {
-  await db.query(`update users set phone = $2 where tg_id = $1`, [id, phone]);
+/**
+ * Запомнить номер аккаунта. verified — номер подтвердил мессенджер (контакт из бота или подписанный requestContact):
+ * только такой номер связывает аккаунты. Вписанный руками номер не затирает подтверждённый.
+ */
+export async function rememberPhone(db: Db, id: number, phone: string, verified = false) {
+  if (verified) await db.query(`update users set phone = $2, phone_verified = true where tg_id = $1`, [id, phone]);
+  else await db.query(`update users set phone = $2 where tg_id = $1 and not phone_verified`, [id, phone]);
 }
 
 export type LinkOffer = { requestId: number; toId: number; html: string; kb: Btn[][] };
@@ -58,10 +63,13 @@ export async function autoLink(
   phone: string,
   context?: { businessName: string; startsAt: string; timezone: string },
 ): Promise<LinkOffer[]> {
+  // связываем только подтверждённые номера: вписать чужой номер руками и увидеть чужие записи нельзя
+  const [me] = await db.query(`select 1 from users where tg_id = $1 and phone = $2 and phone_verified`, [fromId, phone]);
+  if (!me) return [];
   const mine = await personIds(db, fromId);
   const candidates = await db.query<{ tg_id: string | number }>(
     `select u.tg_id from users u
-     where u.phone = $1 and u.tg_id <> all($2::bigint[]) and sign(u.tg_id) <> sign($3::bigint)
+     where u.phone = $1 and u.phone_verified and u.tg_id <> all($2::bigint[]) and sign(u.tg_id) <> sign($3::bigint)
        and not exists (
          select 1 from link_requests r
          where ((r.from_id = $3 and r.to_id = u.tg_id) or (r.from_id = u.tg_id and r.to_id = $3)) and r.status = 'declined'

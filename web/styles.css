@@ -1018,3 +1018,135 @@ html.glow .stat { border-radius: 20px; background: var(--tile); }
 html.glow .stat-n { font-weight: 900; letter-spacing: -0.03em; }
 /* чекбоксы и переключатели — цвета кнопки */
 html.glow input[type="checkbox"] { accent-color: var(--cta-bg); }
+
+/* ---------- фото людей, логотип, альбомы (12.11) ---------- */
+/* круглое фото человека; без фото — буква на мягкой подложке цвета страницы */
+.ava {
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%; overflow: hidden; font-weight: 700; line-height: 1;
+  background: var(--sep); color: var(--text);
+}
+html.glow .ava { background: color-mix(in srgb, var(--cta-bg) 26%, var(--tile)); font-family: var(--f); }
+.ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* логотип над названием: круг; прозрачный PNG — целиком на подложке, фото — на весь круг */
+.g-logo {
+  width: 84px; height: 84px; border-radius: 50%; overflow: hidden; margin-bottom: 16px; flex: none; position: relative;
+  background: var(--tile); box-shadow: 0 16px 34px -18px rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.screen .g-hero .g-logo { animation: g-rise-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.g-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.g-logo.g-logo-alpha img { object-fit: contain; padding: 14%; box-sizing: border-box; }
+.g-has-logo .g-hero { padding-top: 40px; }
+/* логотип вместо названия */
+.g-wordmark { margin: 0; display: flex; justify-content: center; width: 100%; position: relative; }
+.screen .g-hero .g-wordmark { animation: g-rise-in 0.9s 0.05s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.g-wordmark img { display: block; max-width: min(78vw, 340px); max-height: 128px; width: auto; height: auto; object-fit: contain; }
+.g-wordmark:not(.g-logo-alpha) img { border-radius: 22px; }
+/* логотип почти сливается с фоном → рисуем его цветом текста по форме самого логотипа */
+.g-logo-mono img { opacity: 0 !important; }
+.g-logo-mono::after {
+  content: ""; position: absolute; inset: 0; background: var(--text);
+  -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat;
+}
+.g-logo.g-logo-mono::after { inset: 14%; }
+
+/* фото мастера в «Работах»: ряд кружков, выбранный — с кольцом */
+.g-masters { display: flex; gap: 14px; overflow-x: auto; padding: 4px 20px 14px; scrollbar-width: none; }
+.g-masters::-webkit-scrollbar { display: none; }
+.g-master {
+  flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 68px; padding: 0; border: 0; background: none;
+  color: var(--sub); font: 500 13px/1.2 var(--f); cursor: pointer; text-align: center;
+}
+.g-master > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-master .ava { width: 56px; height: 56px; box-shadow: 0 0 0 2px transparent, 0 0 0 4px transparent; transition: box-shadow 0.2s, transform 0.2s; }
+.g-master:active .ava { transform: scale(0.95); }
+.g-master.on { color: var(--text); }
+.g-master.on .ava { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+.g-master-all { width: 56px; height: 56px; }
+
+/* альбомы-подборки: обложка из трёх фото веером */
+.g-albums { display: flex; gap: 12px; overflow-x: auto; padding: 0 16px 6px; scroll-padding: 0 16px; scrollbar-width: none; }
+.g-albums::-webkit-scrollbar { display: none; }
+.g-album {
+  flex: none; width: 150px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 3px; font-family: var(--f);
+}
+.g-album:active { transform: scale(0.97); }
+.g-album-cover { position: relative; width: 150px; height: 170px; margin-bottom: 8px; }
+.g-album-img { position: absolute; width: 122px; height: 150px; object-fit: cover; border-radius: 20px; box-shadow: 0 14px 28px -18px rgba(0, 0, 0, 0.6); }
+.g-album-img-0 { left: 14px; top: 10px; z-index: 3; }
+.g-album-img-1 { left: 2px; top: 16px; z-index: 2; transform: rotate(-7deg); opacity: 0.85; }
+.g-album-img-2 { left: 26px; top: 16px; z-index: 1; transform: rotate(7deg); opacity: 0.7; }
+.g-album-img.g-fade:not(.is-on) { opacity: 0; }
+.g-album-title { font-weight: 700; font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }
+.g-album-sub { font-size: 14px; color: var(--sub); }
+.g-sec-all { display: block; padding-top: 18px; }
+.g-album-head { padding: 0 20px 18px; display: flex; flex-direction: column; gap: 14px; }
+.g-album-desc { margin: 0; font-size: 16px; line-height: 1.45; color: var(--sub); white-space: pre-line; }
+.g-cta.g-cta-sm { margin: 0; width: 100%; }
+
+/* фото крупно: подпись и мастер под фото */
+.lb-cap {
+  position: absolute; left: 16px; right: 16px; bottom: 52px; display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center;
+  color: #fff; font-size: 15px; line-height: 1.35; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6); pointer-events: auto;
+}
+.lb-who { font-size: 13px; opacity: 0.75; }
+
+/* «Примеры работ» под услугой при записи */
+.g-svc { position: relative; }
+.g-svc + .g-svc::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; border-top: 1px solid var(--sep); z-index: 1; }
+.g-examples { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 0 16px 14px; margin-top: -4px; scrollbar-width: none; }
+.g-examples::-webkit-scrollbar { display: none; }
+.g-examples-k { flex: none; font-size: 13px; color: var(--sub); margin-right: 4px; }
+.g-example {
+  flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: var(--sep); cursor: pointer;
+  color: var(--text); font: 600 13px var(--f);
+}
+.g-example img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.g-example-more { background: var(--tile-press, var(--sep)); }
+
+/* выбор мастера: фото слева */
+.g-staff-list .g-item { grid-template-columns: 48px minmax(0, 1fr) auto; }
+.g-staff-list .ava { width: 48px; height: 48px; }
+
+/* постер «Вы записаны»: кто ждёт */
+.g-poster-master { display: flex; align-items: center; gap: 12px; margin-top: 14px; position: relative; z-index: 1; }
+.g-poster-master > span:last-child { display: flex; flex-direction: column; gap: 1px; }
+.g-poster-master b { font-size: 17px; font-weight: 700; }
+
+/* панель: фото мастера, логотип, альбомы, подписи */
+.staff-photo { display: flex; gap: 16px; align-items: center; padding: 4px 16px 16px; }
+.staff-photo-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.logo-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.logo-mode {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 0; border-radius: 18px; background: var(--bg); color: var(--text);
+  cursor: pointer; box-shadow: inset 0 0 0 1.5px var(--sep); font: inherit; text-align: center;
+}
+.logo-mode.on { box-shadow: inset 0 0 0 2px var(--text); }
+.logo-mode-pv { height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; overflow: hidden; }
+.logo-mode-pv b { font-size: 13px; font-weight: 900; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logo-circle { width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: var(--tile, var(--sep)); flex: none; }
+.logo-circle img { width: 100%; height: 100%; object-fit: contain; }
+.logo-word { max-width: 100%; max-height: 72px; object-fit: contain; }
+.logo-mode-label { font-size: 13px; font-weight: 600; }
+.cell-thumb { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; flex: none; display: grid; place-items: center; }
+.cell-thumb-empty { background: var(--sep); color: var(--sub); }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding: 0 16px 10px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chips .chip { flex: none; min-height: 36px; padding: 0 14px; background: var(--tile, var(--card)); }
+.chips .chip-on { background: var(--text); color: var(--bg); }
+.chip-ava { padding-left: 4px !important; }
+.upload-target { text-align: center; padding-top: 8px; }
+.gallery-edit { display: block; }
+.gallery-cap {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 6px; font-size: 12px; line-height: 1.25; color: #fff; text-align: left;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.65)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gallery-cap-empty { opacity: 0.8; }
+.work-preview { margin: 0 16px 16px; border-radius: 22px; overflow: hidden; background: var(--sep); display: grid; place-items: center; }
+.work-preview img { max-width: 100%; max-height: 52vh; display: block; }
+.staff-photo .banner-actions { padding: 0; }
+.cell-before:has(.cell-thumb), .cell-before:has(.ava) { width: 40px; margin-right: 4px; }
+.g-album-svc { margin: 0; font-size: 14px; color: var(--sub); }
+.g-album-svc b { color: var(--text); font-weight: 600; }

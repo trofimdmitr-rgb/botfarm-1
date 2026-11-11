@@ -106,19 +106,25 @@ async function rpc(req: Request): Promise<Response> {
 
 /** Фото портфолио: файл хранится в Telegram, отдаём через CDN Vercel с долгим кэшем. */
 async function photo(url: URL): Promise<Response> {
-  const bannerOf = url.searchParams.get("banner");
-  const id = Number(bannerOf ?? url.searchParams.get("id"));
+  const q = url.searchParams;
+  const kind = q.has("banner") ? "banner" : q.has("logo") ? "logo" : q.has("staff") ? "staff" : "id";
+  const id = Number(q.get(kind));
   if (!Number.isInteger(id)) return new Response("bad id", { status: 400 });
-  const [row] = bannerOf
-    ? await db().query(`select settings->>'bannerFileId' as file_id from businesses where id = $1`, [id])
-    : await db().query(`select file_id from portfolio where id = $1`, [id]);
+  const sql = {
+    banner: `select settings->>'bannerFileId' as file_id from businesses where id = $1`,
+    logo: `select settings->>'logoFileId' as file_id from businesses where id = $1`,
+    staff: `select photo_file_id as file_id from staff where id = $1`,
+    id: `select file_id from portfolio where id = $1`,
+  }[kind];
+  const [row] = await db().query(sql, [id]);
   if (!row?.file_id) return new Response("not found", { status: 404 });
   const file = await rawApi().getFile(row.file_id);
   const res = await fetch(`https://api.telegram.org/file/bot${config.botToken}/${file.file_path}`);
   if (!res.ok) return new Response("upstream error", { status: 502 });
   return new Response(res.body, {
     headers: {
-      "content-type": res.headers.get("content-type") ?? "image/jpeg",
+      // логотип хранится файлом (PNG с прозрачностью) — Telegram отдаёт его без типа картинки
+      "content-type": /\.png$/i.test(file.file_path ?? "") ? "image/png" : /\.webp$/i.test(file.file_path ?? "") ? "image/webp" : "image/jpeg",
       "cache-control": "public, max-age=86400, s-maxage=31536000, immutable",
     },
   });

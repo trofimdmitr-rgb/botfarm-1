@@ -9,6 +9,8 @@ import { setMaxApi } from "../server/max";
 import { handleMaxUpdate } from "../server/maxbot";
 import { upsertUser } from "../server/store";
 import type { InitData } from "../server/auth";
+import { createHmac } from "node:crypto";
+import { groupClients } from "../server/rpc";
 
 process.env.BOT_TOKEN = "123:TEST";
 process.env.BOT_USERNAME = "farm_test_bot";
@@ -26,15 +28,33 @@ const MAX = -555; // она же в MAX
 const PHONE = "+7 927 123-45-67";
 let biz: any;
 
-async function bookAs(id: number, phone = PHONE, nth = 0) {
+/** Подписанный ответ requestContact — как его присылает Telegram («Взять номер из Telegram»). */
+function contactProof(userId: number, phone: string) {
+  const params = new URLSearchParams({
+    contact: JSON.stringify({ phone_number: phone.replace(/\D/g, "").replace(/^8/, "7"), user_id: userId }),
+    auth_date: String(Math.floor(Date.now() / 1000)),
+  });
+  const dc = [...params.entries()].map(([k, v]) => `${k}=${v}`).sort().join("\n");
+  const secret = createHmac("sha256", "WebAppData").update("123:TEST").digest();
+  params.set("hash", createHmac("sha256", secret).update(dc).digest("hex"));
+  return params.toString();
+}
+
+/**
+ * Записаться. verify — номер подтверждён мессенджером: в Telegram — подписанный контакт вместе с записью,
+ * в MAX — контакт, присланный боту (кнопка «Поделиться номером») до записи.
+ */
+async function bookAs(id: number, phone = PHONE, nth = 0, verify = true) {
   await upsertUser(db(), { id, first_name: `U${id}` });
+  if (verify && id < 0) await onContact(id, phone.replace(/\D/g, "").replace(/^8/, "7"));
   const cat: any = await call("boot", { slug: biz.slug }, id);
   const service = cat.business.services[0];
   const av: any = await call("availability", { businessId: biz.id, serviceId: service.id }, id);
   // не сегодня: до записи должно быть больше часов, чем запрет на отмену
   const day = Object.keys(av).filter((d) => av[d].length > nth)[1];
   const slot = av[day][nth];
-  return call("book", { businessId: biz.id, serviceId: service.id, start: slot.start, name: "Аня", phone }, id) as Promise<any>;
+  const phoneProof = verify && id > 0 ? contactProof(id, phone) : undefined;
+  return call("book", { businessId: biz.id, serviceId: service.id, start: slot.start, name: "Аня", phone, phoneProof }, id) as Promise<any>;
 }
 
 const noticeTo = (id: number) => sent.find((m) => m.chatId === id && /^<b>Запись из /.test(m.html));
@@ -59,21 +79,21 @@ describe("связка Telegram ↔ MAX", () => {
     expect(await myCount(TG)).toBe(1);
   });
 
-  it("запись в MAX с тем же номером → аккаунты связаны сразу, в Telegram оповещение; записи видны в обоих, уведомления — в оба", async () => {
-    const tgBooked = await bookAs(TG, PHONE, 0);
+  it("запись в Telegram с подтверждённым номером, который уже подтверждён в MAX → связаны сразу, в MAX оповещение; записи видны в обоих", async () => {
+    const maxBooked = await bookAs(MAX, "89271234567", 0); // тот же номер в другом виде, подтверждён в MAX
     sent = [];
-    await bookAs(MAX, "89271234567", 1); // тот же номер в другом виде
+    await bookAs(TG, PHONE, 1);
 
-    const notice = noticeTo(TG)!;
-    expect(notice, "в Telegram пришло оповещение").toBeTruthy();
-    expect(notice.html).toContain("В MAX вы записались к «Ногти Анны»");
+    const notice = noticeTo(MAX)!;
+    expect(notice, "в MAX пришло оповещение").toBeTruthy();
+    expect(notice.html).toContain("В Telegram вы записались к «Ногти Анны»");
     expect(notice.extra.reply_markup.inline_keyboard[0][0].text).toBe("Это не я");
 
     // без подтверждения: обе записи сразу видны в обоих мессенджерах
     expect(await myCount(MAX)).toBe(2);
     expect(await myCount(TG)).toBe(2);
-    // и отменить запись, сделанную в Telegram, можно из MAX
-    await expect(call("cancelMy", { businessId: biz.id, bookingId: tgBooked.id }, MAX)).resolves.toBeTruthy();
+    // и отменить запись, сделанную в MAX, можно из Telegram
+    await expect(call("cancelMy", { businessId: biz.id, bookingId: maxBooked.id }, TG)).resolves.toBeTruthy();
 
     // следующая запись в Telegram → «Вы записаны» приходит и в Telegram, и в MAX (с пометкой, откуда)
     sent = [];
@@ -82,6 +102,26 @@ describe("связка Telegram ↔ MAX", () => {
     expect(confirm(TG)).toBeTruthy();
     expect(confirm(MAX)?.html).toContain("Запись сделана через Telegram");
     expect(noticeTo(MAX), "уже связанных повторно не оповещаем").toBeUndefined();
+  });
+
+  it("номер, вписанный руками (не подтверждён мессенджером), аккаунты не связывает — чужие записи не увидеть", async () => {
+    await bookAs(TG, PHONE, 0); // настоящий владелец, номер подтверждён
+    sent = [];
+    await bookAs(-888, PHONE, 1, false); // кто-то в MAX вписал тот же номер руками
+    expect(noticeTo(TG)).toBeUndefined();
+    expect(await myCount(-888)).toBe(1);
+    expect(await myCount(TG)).toBe(1);
+  });
+
+  it("у мастера в «Клиентах» один номер — одна строка: имена и записи вместе", () => {
+    const g = groupClients([
+      { tg_id: 1, name: "Антон", phone: "+7 (987) 953-87-47", person: 1, visits: 1, last_seen: "2", blocked_bot: false },
+      { tg_id: 2, name: "тони", phone: "+7 (987) 953-87-47", person: 2, visits: 2, last_seen: "1", blocked_bot: false },
+      { tg_id: -3, name: "Антон", phone: "", person: 1, visits: 0, last_seen: "0", blocked_bot: false },
+      { tg_id: 4, name: "Daria", phone: "", person: 4, visits: 0, last_seen: "0", blocked_bot: false },
+    ]);
+    expect(g).toHaveLength(2);
+    expect(g[0]).toMatchObject({ name: "Антон · тони", visits: 3, tg_ids: [1, 2, -3] });
   });
 
   it("«Это не я» разрывает связь: чужие записи больше не видны, и эти аккаунты больше не связываются", async () => {

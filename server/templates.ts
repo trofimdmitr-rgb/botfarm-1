@@ -35,6 +35,10 @@ export interface BusinessSettings {
   paletteMode: "dark" | "light";
   /** Стиль значков: regular | thin | bold | duo | circle */
   iconStyle: string;
+  /** Логотип (file_id в Telegram) и как его показывать: круг над именем или вместо имени */
+  logoFileId: string;
+  logoMode: "circle" | "wordmark";
+  logoAlpha: boolean;
 }
 
 export interface Template {
@@ -73,6 +77,9 @@ const baseSettings = (over: Partial<BusinessSettings>): BusinessSettings => ({
   palette: "rose",
   paletteMode: "dark",
   iconStyle: "regular",
+  logoFileId: "",
+  logoMode: "circle",
+  logoAlpha: false,
   ...over,
 });
 

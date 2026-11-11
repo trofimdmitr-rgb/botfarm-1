@@ -158,7 +158,7 @@ function App() {
       return <BookFlow key={JSON.stringify(route)} boot={boot} serviceId={route.serviceId} onBack={pop ?? home} onMy={() => setStack([{ name: "home" }, { name: "my" }])} />;
     case "portfolio":
       if (!biz) return null;
-      return <PortfolioScreen boot={boot} onBack={pop ?? home} open={route.open} />;
+      return <PortfolioScreen boot={boot} onBack={pop ?? home} open={route.open} onBook={(serviceId) => push({ name: "book", serviceId })} />;
     case "my":
       if (!biz) return null;
       return <MyBookings boot={boot} onBack={pop ?? home} onBook={() => push({ name: "book" })} />;

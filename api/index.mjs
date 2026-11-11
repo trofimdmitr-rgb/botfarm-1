@@ -296,8 +296,35 @@ create table if not exists link_requests (
   answered_at timestamptz
 );
 create index if not exists link_requests_pair on link_requests(from_id, to_id);
+-- 004: \u043F\u0440\u043E\u0432\u0435\u0440\u0435\u043D\u043D\u044B\u0439 \u043D\u043E\u043C\u0435\u0440, \u0430\u043B\u044C\u0431\u043E\u043C\u044B \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E (\u0430\u043B\u044C\u0431\u043E\u043C = \u0443\u0441\u043B\u0443\u0433\u0430), \u0444\u043E\u0442\u043E \u043F\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430\u043C, \u0444\u043E\u0442\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430.
+-- \u0418\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E: \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u043A\u0430\u0436\u0434\u043E\u043C \u0445\u043E\u043B\u043E\u0434\u043D\u043E\u043C \u0441\u0442\u0430\u0440\u0442\u0435 (MIGRATIONS_SQL).
+
+-- \u043D\u043E\u043C\u0435\u0440 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0451\u043D \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u043E\u043C (\u043A\u043E\u043D\u0442\u0430\u043A\u0442 \u0438\u0437 \u0431\u043E\u0442\u0430 \u0438\u043B\u0438 \u043F\u043E\u0434\u043F\u0438\u0441\u0430\u043D\u043D\u044B\u0439 \u043E\u0442\u0432\u0435\u0442 requestContact) \u2014 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \u043D\u0435\u043C\u0443
+-- \u0441\u0432\u044F\u0437\u044B\u0432\u0430\u0435\u043C \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u044B \u0438 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u043C \u043E\u0431\u0449\u0438\u0435 \xAB\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438\xBB
+alter table users add column if not exists phone_verified boolean not null default false;
+
+-- \u0444\u043E\u0442\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430 (file_id \u0432 Telegram, \u043A\u0430\u043A \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E)
+alter table staff add column if not exists photo_file_id text not null default '';
+
+-- \u0430\u043B\u044C\u0431\u043E\u043C\u044B \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E: \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435, \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0438 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E) \u0443\u0441\u043B\u0443\u0433\u0430, \u043A \u043A\u043E\u0442\u043E\u0440\u043E\u0439 \u044D\u0442\u043E \u043F\u0440\u0438\u043C\u0435\u0440\u044B \u0440\u0430\u0431\u043E\u0442
+create table if not exists albums (
+  id          bigint generated always as identity primary key,
+  business_id bigint not null references businesses(id) on delete cascade,
+  title       text not null,
+  description text not null default '',
+  service_id  bigint references services(id) on delete set null,
+  sort        int not null default 0,
+  created_at  timestamptz not null default now()
+);
+create index if not exists albums_business on albums(business_id, sort);
+alter table albums enable row level security;
+
+-- \u0444\u043E\u0442\u043E \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E: \u0447\u044C\u0451 (\u043C\u0430\u0441\u0442\u0435\u0440) \u0438 \u0432 \u043A\u0430\u043A\u043E\u043C \u0430\u043B\u044C\u0431\u043E\u043C\u0435
+alter table portfolio add column if not exists staff_id bigint references staff(id) on delete set null;
+alter table portfolio add column if not exists album_id bigint references albums(id) on delete set null;
+create index if not exists portfolio_album on portfolio(album_id);
 `;
-    MIGRATIONS_SQL = "-- \u0421\u0432\u044F\u0437\u043A\u0430 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432 \u043E\u0434\u043D\u043E\u0433\u043E \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430 \u0432 \u0440\u0430\u0437\u043D\u044B\u0445 \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u0430\u0445 (Telegram \u2194 MAX).\n-- \u0418\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E: \u0441\u0435\u0440\u0432\u0435\u0440 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442 \u044D\u0442\u043E\u0442 \u0444\u0430\u0439\u043B \u043F\u0440\u0438 \u043A\u0430\u0436\u0434\u043E\u043C \u0445\u043E\u043B\u043E\u0434\u043D\u043E\u043C \u0441\u0442\u0430\u0440\u0442\u0435 (server/db.ts \u2192 MIGRATIONS_SQL).\nalter table users add column if not exists phone text;          -- \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u043D\u043E\u043C\u0435\u0440, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u0447\u0435\u043B\u043E\u0432\u0435\u043A \u0443\u043A\u0430\u0437\u0430\u043B\nalter table users add column if not exists person_id bigint;    -- \u043E\u0431\u0449\u0438\u0439 id \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430: \u0443 \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0445 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432 \u043E\u0434\u0438\u043D\u0430\u043A\u043E\u0432\u044B\u0439\ncreate index if not exists users_phone on users(phone);\ncreate index if not exists users_person on users(person_id);\n\n-- \xAB\u042D\u0442\u043E \u0432\u044B?\xBB: \u0441\u043F\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u043C \u0412\u041B\u0410\u0414\u0415\u041B\u042C\u0426\u0410 \u0443\u0436\u0435 \u0438\u0437\u0432\u0435\u0441\u0442\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430 (to_id), \u043A\u043E\u0433\u0434\u0430 \u0434\u0440\u0443\u0433\u043E\u0439 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 (from_id) \u0443\u043A\u0430\u0437\u0430\u043B \u0442\u043E\u0442 \u0436\u0435 \u043D\u043E\u043C\u0435\u0440.\n-- \u0421\u0432\u044F\u0437\u044B\u0432\u0430\u0435\u043C \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \xAB\u0414\u0430\xBB \u2014 \u0438\u043D\u0430\u0447\u0435 \u043A\u0442\u043E \u0443\u0433\u043E\u0434\u043D\u043E \u0432\u0432\u0451\u043B \u0431\u044B \u0447\u0443\u0436\u043E\u0439 \u043D\u043E\u043C\u0435\u0440 \u0438 \u0443\u0432\u0438\u0434\u0435\u043B \u0447\u0443\u0436\u0438\u0435 \u0437\u0430\u043F\u0438\u0441\u0438.\ncreate table if not exists link_requests (\n  id          bigserial primary key,\n  from_id     bigint not null,\n  to_id       bigint not null,\n  phone       text not null,\n  status      text not null default 'pending' check (status in ('pending','accepted','declined')),\n  created_at  timestamptz not null default now(),\n  answered_at timestamptz\n);\ncreate index if not exists link_requests_pair on link_requests(from_id, to_id);\n\n-- \u043D\u043E\u043C\u0435\u0440\u0430 \u0438\u0437 \u0443\u0436\u0435 \u0441\u0434\u0435\u043B\u0430\u043D\u043D\u044B\u0445 \u0437\u0430\u043F\u0438\u0441\u0435\u0439: \u043F\u043E\u0434\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u043C \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430\u043C, \u0443 \u043A\u043E\u0442\u043E\u0440\u044B\u0445 \u043D\u043E\u043C\u0435\u0440 \u0435\u0449\u0451 \u043D\u0435 \u0437\u0430\u043F\u043E\u043C\u043D\u0435\u043D\nupdate users u set phone = c.phone\nfrom (\n  select distinct on (tg_id) tg_id, phone from clients\n  where phone is not null and phone <> '' order by tg_id, last_seen desc\n) c\nwhere c.tg_id = u.tg_id and u.phone is null;\n";
+    MIGRATIONS_SQL = "-- \u0421\u0432\u044F\u0437\u043A\u0430 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432 \u043E\u0434\u043D\u043E\u0433\u043E \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430 \u0432 \u0440\u0430\u0437\u043D\u044B\u0445 \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u0430\u0445 (Telegram \u2194 MAX).\n-- \u0418\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E: \u0441\u0435\u0440\u0432\u0435\u0440 \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442 \u044D\u0442\u043E\u0442 \u0444\u0430\u0439\u043B \u043F\u0440\u0438 \u043A\u0430\u0436\u0434\u043E\u043C \u0445\u043E\u043B\u043E\u0434\u043D\u043E\u043C \u0441\u0442\u0430\u0440\u0442\u0435 (server/db.ts \u2192 MIGRATIONS_SQL).\nalter table users add column if not exists phone text;          -- \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u043D\u043E\u043C\u0435\u0440, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u0447\u0435\u043B\u043E\u0432\u0435\u043A \u0443\u043A\u0430\u0437\u0430\u043B\nalter table users add column if not exists person_id bigint;    -- \u043E\u0431\u0449\u0438\u0439 id \u0447\u0435\u043B\u043E\u0432\u0435\u043A\u0430: \u0443 \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0445 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u043E\u0432 \u043E\u0434\u0438\u043D\u0430\u043A\u043E\u0432\u044B\u0439\ncreate index if not exists users_phone on users(phone);\ncreate index if not exists users_person on users(person_id);\n\n-- \xAB\u042D\u0442\u043E \u0432\u044B?\xBB: \u0441\u043F\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u043C \u0412\u041B\u0410\u0414\u0415\u041B\u042C\u0426\u0410 \u0443\u0436\u0435 \u0438\u0437\u0432\u0435\u0441\u0442\u043D\u043E\u0433\u043E \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430 (to_id), \u043A\u043E\u0433\u0434\u0430 \u0434\u0440\u0443\u0433\u043E\u0439 \u0430\u043A\u043A\u0430\u0443\u043D\u0442 (from_id) \u0443\u043A\u0430\u0437\u0430\u043B \u0442\u043E\u0442 \u0436\u0435 \u043D\u043E\u043C\u0435\u0440.\n-- \u0421\u0432\u044F\u0437\u044B\u0432\u0430\u0435\u043C \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \xAB\u0414\u0430\xBB \u2014 \u0438\u043D\u0430\u0447\u0435 \u043A\u0442\u043E \u0443\u0433\u043E\u0434\u043D\u043E \u0432\u0432\u0451\u043B \u0431\u044B \u0447\u0443\u0436\u043E\u0439 \u043D\u043E\u043C\u0435\u0440 \u0438 \u0443\u0432\u0438\u0434\u0435\u043B \u0447\u0443\u0436\u0438\u0435 \u0437\u0430\u043F\u0438\u0441\u0438.\ncreate table if not exists link_requests (\n  id          bigserial primary key,\n  from_id     bigint not null,\n  to_id       bigint not null,\n  phone       text not null,\n  status      text not null default 'pending' check (status in ('pending','accepted','declined')),\n  created_at  timestamptz not null default now(),\n  answered_at timestamptz\n);\ncreate index if not exists link_requests_pair on link_requests(from_id, to_id);\n\n-- \u043D\u043E\u043C\u0435\u0440\u0430 \u0438\u0437 \u0443\u0436\u0435 \u0441\u0434\u0435\u043B\u0430\u043D\u043D\u044B\u0445 \u0437\u0430\u043F\u0438\u0441\u0435\u0439: \u043F\u043E\u0434\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u043C \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430\u043C, \u0443 \u043A\u043E\u0442\u043E\u0440\u044B\u0445 \u043D\u043E\u043C\u0435\u0440 \u0435\u0449\u0451 \u043D\u0435 \u0437\u0430\u043F\u043E\u043C\u043D\u0435\u043D\nupdate users u set phone = c.phone\nfrom (\n  select distinct on (tg_id) tg_id, phone from clients\n  where phone is not null and phone <> '' order by tg_id, last_seen desc\n) c\nwhere c.tg_id = u.tg_id and u.phone is null;\n\n-- 004: \u043F\u0440\u043E\u0432\u0435\u0440\u0435\u043D\u043D\u044B\u0439 \u043D\u043E\u043C\u0435\u0440, \u0430\u043B\u044C\u0431\u043E\u043C\u044B \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E (\u0430\u043B\u044C\u0431\u043E\u043C = \u0443\u0441\u043B\u0443\u0433\u0430), \u0444\u043E\u0442\u043E \u043F\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430\u043C, \u0444\u043E\u0442\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430.\n-- \u0418\u0434\u0435\u043C\u043F\u043E\u0442\u0435\u043D\u0442\u043D\u043E: \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u043A\u0430\u0436\u0434\u043E\u043C \u0445\u043E\u043B\u043E\u0434\u043D\u043E\u043C \u0441\u0442\u0430\u0440\u0442\u0435 (MIGRATIONS_SQL).\n\n-- \u043D\u043E\u043C\u0435\u0440 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0451\u043D \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u043E\u043C (\u043A\u043E\u043D\u0442\u0430\u043A\u0442 \u0438\u0437 \u0431\u043E\u0442\u0430 \u0438\u043B\u0438 \u043F\u043E\u0434\u043F\u0438\u0441\u0430\u043D\u043D\u044B\u0439 \u043E\u0442\u0432\u0435\u0442 requestContact) \u2014 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \u043D\u0435\u043C\u0443\n-- \u0441\u0432\u044F\u0437\u044B\u0432\u0430\u0435\u043C \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u044B \u0438 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u043C \u043E\u0431\u0449\u0438\u0435 \xAB\u041C\u043E\u0438 \u0437\u0430\u043F\u0438\u0441\u0438\xBB\nalter table users add column if not exists phone_verified boolean not null default false;\n\n-- \u0444\u043E\u0442\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430 (file_id \u0432 Telegram, \u043A\u0430\u043A \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E)\nalter table staff add column if not exists photo_file_id text not null default '';\n\n-- \u0430\u043B\u044C\u0431\u043E\u043C\u044B \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E: \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435, \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0438 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E) \u0443\u0441\u043B\u0443\u0433\u0430, \u043A \u043A\u043E\u0442\u043E\u0440\u043E\u0439 \u044D\u0442\u043E \u043F\u0440\u0438\u043C\u0435\u0440\u044B \u0440\u0430\u0431\u043E\u0442\ncreate table if not exists albums (\n  id          bigint generated always as identity primary key,\n  business_id bigint not null references businesses(id) on delete cascade,\n  title       text not null,\n  description text not null default '',\n  service_id  bigint references services(id) on delete set null,\n  sort        int not null default 0,\n  created_at  timestamptz not null default now()\n);\ncreate index if not exists albums_business on albums(business_id, sort);\nalter table albums enable row level security;\n\n-- \u0444\u043E\u0442\u043E \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E: \u0447\u044C\u0451 (\u043C\u0430\u0441\u0442\u0435\u0440) \u0438 \u0432 \u043A\u0430\u043A\u043E\u043C \u0430\u043B\u044C\u0431\u043E\u043C\u0435\nalter table portfolio add column if not exists staff_id bigint references staff(id) on delete set null;\nalter table portfolio add column if not exists album_id bigint references albums(id) on delete set null;\ncreate index if not exists portfolio_album on portfolio(album_id);\n";
   }
 });
 
@@ -539,6 +566,9 @@ var init_templates = __esm({
       palette: "rose",
       paletteMode: "dark",
       iconStyle: "regular",
+      logoFileId: "",
+      logoMode: "circle",
+      logoAlpha: false,
       ...over
     });
     TEMPLATES = [
@@ -1033,7 +1063,7 @@ async function platformStats(db2) {
   );
   return r;
 }
-var UserError, rowToBusiness, samePerson, listServices, listStaff, listPortfolio, BookingConflict, clientBookings, bookingsInRange;
+var UserError, rowToBusiness, samePerson, listServices, listStaff, PORTFOLIO_MAX, listPortfolio, listAlbums, BookingConflict, clientBookings, bookingsInRange;
 var init_store = __esm({
   "server/store.ts"() {
     "use strict";
@@ -1050,8 +1080,13 @@ var init_store = __esm({
       [businessId]
     );
     listStaff = (db2, businessId, all = false) => db2.query(`select * from staff where business_id = $1 ${all ? "" : "and active"} order by sort, id`, [businessId]);
+    PORTFOLIO_MAX = 150;
     listPortfolio = (db2, businessId) => db2.query(
-      `select id, file_id, caption from portfolio where business_id = $1 order by sort, id desc limit 60`,
+      `select id, file_id, caption, staff_id, album_id from portfolio where business_id = $1 order by sort, id desc limit ${PORTFOLIO_MAX}`,
+      [businessId]
+    );
+    listAlbums = (db2, businessId) => db2.query(
+      `select id, title, description, service_id, sort from albums where business_id = $1 order by sort, id`,
       [businessId]
     );
     BookingConflict = class extends UserError {
@@ -1089,8 +1124,9 @@ async function personIds(db2, id) {
   const ids = rows.map((r) => Number(r.tg_id));
   return ids.length ? ids : [Number(id)];
 }
-async function rememberPhone(db2, id, phone) {
-  await db2.query(`update users set phone = $2 where tg_id = $1`, [id, phone]);
+async function rememberPhone(db2, id, phone, verified = false) {
+  if (verified) await db2.query(`update users set phone = $2, phone_verified = true where tg_id = $1`, [id, phone]);
+  else await db2.query(`update users set phone = $2 where tg_id = $1 and not phone_verified`, [id, phone]);
 }
 async function merge(db2, a, b) {
   await db2.tx(async (t) => {
@@ -1110,10 +1146,12 @@ async function detach(db2, id) {
   else if (ids.length > 1) await db2.query(`update users set person_id = $1 where tg_id = any($2::bigint[])`, [ids[0], ids]);
 }
 async function autoLink(db2, fromId, phone, context) {
+  const [me] = await db2.query(`select 1 from users where tg_id = $1 and phone = $2 and phone_verified`, [fromId, phone]);
+  if (!me) return [];
   const mine = await personIds(db2, fromId);
   const candidates = await db2.query(
     `select u.tg_id from users u
-     where u.phone = $1 and u.tg_id <> all($2::bigint[]) and sign(u.tg_id) <> sign($3::bigint)
+     where u.phone = $1 and u.phone_verified and u.tg_id <> all($2::bigint[]) and sign(u.tg_id) <> sign($3::bigint)
        and not exists (
          select 1 from link_requests r
          where ((r.from_id = $3 and r.to_id = u.tg_id) or (r.from_id = u.tg_id and r.to_id = $3)) and r.status = 'declined'
@@ -1382,6 +1420,13 @@ function tg() {
       const msg = await a.sendPhoto(target, new InputFile(photo2), { caption });
       const sizes = msg.photo ?? [];
       return { file_id: sizes[sizes.length - 1].file_id };
+    },
+    sendDocument: async (chatId, file, filename, caption) => {
+      const { InputFile } = await import("grammy");
+      const target = chatId < 0 ? config.tgStorageChat : chatId;
+      if (!target) throw new Error("\u041D\u0435\u043A\u0443\u0434\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0444\u043E\u0442\u043E: \u0437\u0430\u0434\u0430\u0439\u0442\u0435 TG_STORAGE_CHAT_ID");
+      const msg = await a.sendDocument(target, new InputFile(file, filename), { caption });
+      return { file_id: msg.document.file_id };
     },
     setChatMenuButton: async (chatId, text, url) => {
       if (chatId < 0) return null;
@@ -1740,7 +1785,7 @@ async function onContact(uid, rawPhone) {
   try {
     const { rememberPhone: rememberPhone2, autoLink: autoLink2 } = await Promise.resolve().then(() => (init_links(), links_exports));
     const { sendLinkOffers: sendLinkOffers2 } = await Promise.resolve().then(() => (init_notify(), notify_exports));
-    await rememberPhone2(db(), uid, pc.phone);
+    await rememberPhone2(db(), uid, pc.phone, true);
     const notices = await autoLink2(db(), uid, pc.phone);
     linked = notices.length > 0;
     await sendLinkOffers2(notices);
@@ -1875,6 +1920,27 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 var AuthError = class extends Error {
 };
 var MAX_AGE_SEC = 7 * 24 * 3600;
+function verifyContactProof(raw, botToken, userId, nowMs = Date.now()) {
+  try {
+    if (!raw || !botToken) return null;
+    const params = new URLSearchParams(raw);
+    const hash = params.get("hash");
+    if (!hash) return null;
+    params.delete("hash");
+    const dataCheck = [...params.entries()].map(([k, v]) => `${k}=${v}`).sort().join("\n");
+    const secret = createHmac("sha256", "WebAppData").update(botToken).digest();
+    const expected = createHmac("sha256", secret).update(dataCheck).digest();
+    const given = Buffer.from(hash, "hex");
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
+    const authDate = Number(params.get("auth_date"));
+    if (!authDate || nowMs / 1e3 - authDate > 24 * 3600) return null;
+    const contact = JSON.parse(params.get("contact") ?? "null");
+    if (!contact?.phone_number || Number(contact.user_id) !== userId) return null;
+    return String(contact.phone_number);
+  } catch {
+    return null;
+  }
+}
 function verifyInitData(raw, botToken, nowMs = Date.now()) {
   if (!raw) throw new AuthError("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445 \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u0438");
   const params = new URLSearchParams(raw);
@@ -2028,6 +2094,8 @@ async function runReminders(now = /* @__PURE__ */ new Date()) {
 }
 
 // server/rpc.ts
+import { DateTime as DateTime5 } from "luxon";
+init_phone();
 init_config();
 init_db();
 init_links();
@@ -2037,7 +2105,6 @@ init_store();
 init_store();
 init_telegram();
 init_templates();
-import { DateTime as DateTime5 } from "luxon";
 var int = (v, name) => {
   const n = Number(v);
   if (!Number.isInteger(n)) throw new UserError(`\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0435 \u043F\u043E\u043B\u0435 ${name}`);
@@ -2058,10 +2125,11 @@ function links(b) {
   };
 }
 async function catalog(b) {
-  const [services, staff, portfolio] = await Promise.all([
+  const [services, staff, portfolio, albums] = await Promise.all([
     listServices(db(), b.id),
     listStaff(db(), b.id),
-    listPortfolio(db(), b.id)
+    listPortfolio(db(), b.id),
+    listAlbums(db(), b.id)
   ]);
   return {
     services: services.map(({ id, title, description, price, price_from, duration_min }) => ({
@@ -2072,8 +2140,10 @@ async function catalog(b) {
       price_from,
       duration_min
     })),
-    staff: staff.map(({ id, name, description }) => ({ id, name, description })),
-    portfolio: portfolio.map((p) => ({ id: p.id, caption: p.caption }))
+    // photo — метка версии фото мастера (меняется при замене, чтобы не показывать старое из кэша)
+    staff: staff.map(({ id, name, description, photo_file_id }) => ({ id, name, description, photo: photoTag(photo_file_id) })),
+    portfolio: portfolio.map((p) => ({ id: p.id, caption: p.caption, staffId: p.staff_id == null ? null : Number(p.staff_id), albumId: p.album_id == null ? null : Number(p.album_id) })),
+    albums: albums.map((a) => ({ id: Number(a.id), title: a.title, description: a.description, serviceId: a.service_id == null ? null : Number(a.service_id) }))
   };
 }
 async function boot(ctx, p) {
@@ -2149,7 +2219,10 @@ async function book(ctx, p) {
   await onBookingCreated(db(), b, booking);
   if (booking.client_phone) {
     try {
-      await rememberPhone(db(), ctx.init.user.id, booking.client_phone);
+      const proof = verifyContactProof(String(p.phoneProof ?? ""), config.botToken, ctx.init.user.id);
+      const pc = proof ? checkPhone(proof.startsWith("+") ? proof : `+${proof}`) : null;
+      const proofOk = !!pc && pc.ok && pc.phone === booking.client_phone;
+      await rememberPhone(db(), ctx.init.user.id, booking.client_phone, proofOk);
       const offers = await autoLink(db(), ctx.init.user.id, booking.client_phone, {
         businessName: b.name,
         startsAt: String(booking.starts_at),
@@ -2160,7 +2233,7 @@ async function book(ctx, p) {
       console.error("link offers", e);
     }
   }
-  return { id: booking.id, starts_at: booking.starts_at };
+  return { id: booking.id, starts_at: booking.starts_at, staff_id: Number(booking.staff_id) };
 }
 async function myBookings(ctx, p) {
   const b = await requireBusiness(p.businessId);
@@ -2391,7 +2464,8 @@ var SETTINGS_KEYS = [
   "fields",
   "palette",
   "paletteMode",
-  "iconStyle"
+  "iconStyle",
+  "logoMode"
 ];
 async function saveSettings(ctx, p) {
   const incoming = p.settings ?? {};
@@ -2418,6 +2492,7 @@ async function saveSettings(ctx, p) {
   if (settings.accent && !/^#[0-9a-f]{6}$/i.test(settings.accent)) delete settings.accent;
   if ("palette" in settings && !isPalette(settings.palette)) delete settings.palette;
   if ("paletteMode" in settings && settings.paletteMode !== "dark" && settings.paletteMode !== "light") delete settings.paletteMode;
+  if ("logoMode" in settings && settings.logoMode !== "circle" && settings.logoMode !== "wordmark") delete settings.logoMode;
   if ("iconStyle" in settings && !["regular", "thin", "bold", "duo", "circle"].includes(String(settings.iconStyle))) delete settings.iconStyle;
   const b = await updateBusiness(db(), ctx.business.id, {
     name: p.name ? str(p.name, 80) : void 0,
@@ -2426,23 +2501,101 @@ async function saveSettings(ctx, p) {
   });
   return publicBusiness(b);
 }
-async function portfolioAdd(ctx, p) {
+var photoTag = (fileId) => fileId ? fileId.slice(-10) : "";
+function imageBuf(p) {
   const b64 = String(p.imageBase64 ?? "").replace(/^data:image\/\w+;base64,/, "");
   const buf = Buffer.from(b64, "base64");
-  if (buf.length < 1e3) throw new UserError("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C \u0444\u043E\u0442\u043E");
+  if (buf.length < 500) throw new UserError("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C \u0444\u043E\u0442\u043E");
   if (buf.length > 35e5) throw new UserError("\u0424\u043E\u0442\u043E \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u0431\u043E\u043B\u044C\u0448\u043E\u0435");
+  return buf;
+}
+async function ownId(table, v, businessId) {
+  if (v == null || v === "") return null;
+  const id = int(v, table);
+  const [row2] = await db().query(`select 1 from ${table} where id = $1 and business_id = $2`, [id, businessId]);
+  if (!row2) throw new UserError("\u041D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E");
+  return id;
+}
+async function portfolioAdd(ctx, p) {
+  const buf = imageBuf(p);
   const count = await db().query(`select count(*)::int as n from portfolio where business_id = $1`, [ctx.business.id]);
-  if (count[0].n >= 60) throw new UserError("\u0412 \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E \u043C\u0430\u043A\u0441\u0438\u043C\u0443\u043C 60 \u0444\u043E\u0442\u043E");
+  if (count[0].n >= PORTFOLIO_MAX) throw new UserError(`\u0412 \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E \u043C\u0430\u043A\u0441\u0438\u043C\u0443\u043C ${PORTFOLIO_MAX} \u0444\u043E\u0442\u043E`);
+  const staffId = await ownId("staff", p.staffId, ctx.business.id);
+  const albumId = await ownId("albums", p.albumId, ctx.business.id);
   const { file_id } = await tg().sendPhoto(
     ctx.init.user.id,
     new Uint8Array(buf),
     `\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E \u0432 \u043F\u043E\u0440\u0442\u0444\u043E\u043B\u0438\u043E \xAB${ctx.business.name}\xBB`
   );
   const [row2] = await db().query(
-    `insert into portfolio (business_id, file_id, caption, sort) values ($1, $2, $3, $4) returning id, caption`,
-    [ctx.business.id, file_id, str(p.caption, 200), 0]
+    `insert into portfolio (business_id, file_id, caption, sort, staff_id, album_id) values ($1, $2, $3, $4, $5, $6)
+     returning id, caption, staff_id, album_id`,
+    [ctx.business.id, file_id, str(p.caption, 300), 0, staffId, albumId]
   );
   return row2;
+}
+async function portfolioUpdate(ctx, p) {
+  const id = int(p.id, "id");
+  const staffId = await ownId("staff", p.staffId, ctx.business.id);
+  const albumId = await ownId("albums", p.albumId, ctx.business.id);
+  const [row2] = await db().query(
+    `update portfolio set caption = $3, staff_id = $4, album_id = $5 where id = $1 and business_id = $2
+     returning id, caption, staff_id, album_id`,
+    [id, ctx.business.id, str(p.caption, 300), staffId, albumId]
+  );
+  if (!row2) throw new UserError("\u0424\u043E\u0442\u043E \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E");
+  return row2;
+}
+async function albumSave(ctx, p) {
+  const a = p.album ?? {};
+  const title = str(a.title, 60);
+  if (!title) throw new UserError("\u041D\u0430\u0437\u043E\u0432\u0438\u0442\u0435 \u0430\u043B\u044C\u0431\u043E\u043C");
+  const serviceId = await ownId("services", a.serviceId, ctx.business.id);
+  const vals = [ctx.business.id, title, str(a.description, 600), serviceId];
+  if (a.id) {
+    const [row3] = await db().query(
+      `update albums set title = $2, description = $3, service_id = $4 where business_id = $1 and id = $5 returning *`,
+      [...vals, int(a.id, "id")]
+    );
+    if (!row3) throw new UserError("\u0410\u043B\u044C\u0431\u043E\u043C \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D");
+    return row3;
+  }
+  const [n] = await db().query(`select count(*)::int as n from albums where business_id = $1`, [ctx.business.id]);
+  if (n.n >= 30) throw new UserError("\u041C\u0430\u043A\u0441\u0438\u043C\u0443\u043C 30 \u0430\u043B\u044C\u0431\u043E\u043C\u043E\u0432");
+  const [row2] = await db().query(
+    `insert into albums (business_id, title, description, service_id, sort) values ($1, $2, $3, $4, $5) returning *`,
+    [...vals, n.n]
+  );
+  return row2;
+}
+async function albumRemove(ctx, p) {
+  await db().query(`delete from albums where id = $1 and business_id = $2`, [int(p.id, "id"), ctx.business.id]);
+  return { ok: true };
+}
+async function staffPhotoSet(ctx, p) {
+  const staffId = await ownId("staff", p.staffId, ctx.business.id);
+  if (!staffId) throw new UserError("\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043C\u0430\u0441\u0442\u0435\u0440\u0430");
+  const { file_id } = await tg().sendPhoto(ctx.init.user.id, new Uint8Array(imageBuf(p)), `\u0424\u043E\u0442\u043E \u043C\u0430\u0441\u0442\u0435\u0440\u0430 \xAB${ctx.business.name}\xBB`);
+  await db().query(`update staff set photo_file_id = $2 where id = $1`, [staffId, file_id]);
+  return { photo: photoTag(file_id) };
+}
+async function staffPhotoRemove(ctx, p) {
+  const staffId = await ownId("staff", p.staffId, ctx.business.id);
+  await db().query(`update staff set photo_file_id = '' where id = $1`, [staffId]);
+  return { ok: true };
+}
+async function logoSet(ctx, p) {
+  const buf = imageBuf(p);
+  const png = /^data:image\/png/.test(String(p.imageBase64 ?? ""));
+  const t = tg();
+  const caption = `\u041B\u043E\u0433\u043E\u0442\u0438\u043F \xAB${ctx.business.name}\xBB`;
+  const { file_id } = png && t.sendDocument ? await t.sendDocument(ctx.init.user.id, new Uint8Array(buf), "logo.png", caption) : await t.sendPhoto(ctx.init.user.id, new Uint8Array(buf), caption);
+  const b = await updateBusiness(db(), ctx.business.id, { settings: { logoFileId: file_id, logoAlpha: png } });
+  return publicBusiness(b);
+}
+async function logoRemove(ctx) {
+  const b = await updateBusiness(db(), ctx.business.id, { settings: { logoFileId: "", logoAlpha: false } });
+  return publicBusiness(b);
 }
 async function portfolioRemove(ctx, p) {
   await db().query(`delete from portfolio where id = $1 and business_id = $2`, [int(p.id, "id"), ctx.business.id]);
@@ -2463,12 +2616,44 @@ async function bannerRemove(ctx) {
   return publicBusiness(b);
 }
 async function adminClients(ctx) {
-  return db().query(
-    `select c.tg_id, c.name, c.phone, c.last_seen, c.blocked_bot,
+  const rows = await db().query(
+    `select c.tg_id, c.name, c.phone, c.last_seen, c.blocked_bot, coalesce(u.person_id, c.tg_id) as person,
        (select count(*) from bookings b where b.business_id = c.business_id and b.client_tg_id = c.tg_id and b.status in ('confirmed','done'))::int as visits
-     from clients c where c.business_id = $1 order by c.last_seen desc limit 500`,
+     from clients c left join users u on u.tg_id = c.tg_id
+     where c.business_id = $1 order by c.last_seen desc limit 1000`,
     [ctx.business.id]
   );
+  return groupClients(rows);
+}
+function groupClients(rows) {
+  const byKey = /* @__PURE__ */ new Map();
+  const personKey = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const digits = String(r.phone ?? "").replace(/\D/g, "").replace(/^8(?=\d{10}$)/, "7");
+    const pk = `p:${r.person}`;
+    const key = digits ? `t:${digits}` : personKey.get(pk) ?? pk;
+    personKey.set(pk, key);
+    const g = byKey.get(key);
+    if (!g) {
+      byKey.set(key, {
+        tg_id: Number(r.tg_id),
+        tg_ids: [Number(r.tg_id)],
+        name: r.name,
+        names: r.name ? [r.name] : [],
+        phone: r.phone,
+        last_seen: r.last_seen,
+        blocked_bot: r.blocked_bot,
+        visits: r.visits
+      });
+    } else {
+      g.tg_ids.push(Number(r.tg_id));
+      if (r.name && !g.names.some((n) => n.toLowerCase() === String(r.name).toLowerCase())) g.names.push(r.name);
+      g.visits += r.visits;
+      g.blocked_bot = g.blocked_bot && r.blocked_bot;
+      if (!g.phone && r.phone) g.phone = r.phone;
+    }
+  }
+  return [...byKey.values()].map((g) => ({ ...g, name: g.names.join(" \xB7 ") }));
 }
 async function adminInvite(ctx, p) {
   const role = p.role === "owner" ? "owner" : "admin";
@@ -2544,8 +2729,24 @@ var methods = {
   "admin.addTimeOff": { need: "admin", fn: addTimeOff },
   "admin.removeTimeOff": { need: "admin", fn: removeTimeOff },
   "admin.saveSettings": { need: "admin", fn: saveSettings },
-  "admin.portfolio": { need: "admin", fn: (ctx) => listPortfolio(db(), ctx.business.id).then((l) => l.map(({ id, caption }) => ({ id, caption }))) },
+  "admin.portfolio": {
+    need: "admin",
+    fn: async (ctx) => {
+      const [photos, albums] = await Promise.all([listPortfolio(db(), ctx.business.id), listAlbums(db(), ctx.business.id)]);
+      return {
+        photos: photos.map((x) => ({ id: x.id, caption: x.caption, staffId: x.staff_id == null ? null : Number(x.staff_id), albumId: x.album_id == null ? null : Number(x.album_id) })),
+        albums: albums.map((a) => ({ id: Number(a.id), title: a.title, description: a.description, serviceId: a.service_id == null ? null : Number(a.service_id) }))
+      };
+    }
+  },
   "admin.portfolioAdd": { need: "admin", fn: portfolioAdd },
+  "admin.portfolioUpdate": { need: "admin", fn: portfolioUpdate },
+  "admin.albumSave": { need: "admin", fn: albumSave },
+  "admin.albumRemove": { need: "admin", fn: albumRemove },
+  "admin.staffPhotoSet": { need: "admin", fn: staffPhotoSet },
+  "admin.staffPhotoRemove": { need: "admin", fn: staffPhotoRemove },
+  "admin.logoSet": { need: "admin", fn: logoSet },
+  "admin.logoRemove": { need: "admin", fn: logoRemove },
   "admin.bannerSet": { need: "admin", fn: bannerSet },
   "admin.bannerRemove": { need: "admin", fn: bannerRemove },
   "admin.portfolioRemove": { need: "admin", fn: portfolioRemove },
@@ -2660,17 +2861,25 @@ async function rpc(req) {
   }
 }
 async function photo(url) {
-  const bannerOf = url.searchParams.get("banner");
-  const id = Number(bannerOf ?? url.searchParams.get("id"));
+  const q = url.searchParams;
+  const kind = q.has("banner") ? "banner" : q.has("logo") ? "logo" : q.has("staff") ? "staff" : "id";
+  const id = Number(q.get(kind));
   if (!Number.isInteger(id)) return new Response("bad id", { status: 400 });
-  const [row2] = bannerOf ? await db().query(`select settings->>'bannerFileId' as file_id from businesses where id = $1`, [id]) : await db().query(`select file_id from portfolio where id = $1`, [id]);
+  const sql = {
+    banner: `select settings->>'bannerFileId' as file_id from businesses where id = $1`,
+    logo: `select settings->>'logoFileId' as file_id from businesses where id = $1`,
+    staff: `select photo_file_id as file_id from staff where id = $1`,
+    id: `select file_id from portfolio where id = $1`
+  }[kind];
+  const [row2] = await db().query(sql, [id]);
   if (!row2?.file_id) return new Response("not found", { status: 404 });
   const file = await rawApi().getFile(row2.file_id);
   const res = await fetch(`https://api.telegram.org/file/bot${config.botToken}/${file.file_path}`);
   if (!res.ok) return new Response("upstream error", { status: 502 });
   return new Response(res.body, {
     headers: {
-      "content-type": res.headers.get("content-type") ?? "image/jpeg",
+      // логотип хранится файлом (PNG с прозрачностью) — Telegram отдаёт его без типа картинки
+      "content-type": /\.png$/i.test(file.file_path ?? "") ? "image/png" : /\.webp$/i.test(file.file_path ?? "") ? "image/webp" : "image/jpeg",
       "cache-control": "public, max-age=86400, s-maxage=31536000, immutable"
     }
   });

@@ -28,6 +28,7 @@ export interface Staff {
   work_hours: WorkHours;
   active: boolean;
   sort: number;
+  photo_file_id: string;
 }
 
 export interface Service {
@@ -250,9 +251,18 @@ export const listServices = (db: Db, businessId: number, all = false) =>
 export const listStaff = (db: Db, businessId: number, all = false) =>
   db.query<Staff>(`select * from staff where business_id = $1 ${all ? "" : "and active"} order by sort, id`, [businessId]);
 
+export const PORTFOLIO_MAX = 150;
+
 export const listPortfolio = (db: Db, businessId: number) =>
-  db.query<{ id: number; file_id: string; caption: string }>(
-    `select id, file_id, caption from portfolio where business_id = $1 order by sort, id desc limit 60`,
+  db.query<{ id: number; file_id: string; caption: string; staff_id: number | null; album_id: number | null }>(
+    `select id, file_id, caption, staff_id, album_id from portfolio where business_id = $1 order by sort, id desc limit ${PORTFOLIO_MAX}`,
+    [businessId],
+  );
+
+/** Альбомы портфолио: название, описание и услуга, примерами которой они служат. */
+export const listAlbums = (db: Db, businessId: number) =>
+  db.query<{ id: number; title: string; description: string; service_id: number | null; sort: number }>(
+    `select id, title, description, service_id, sort from albums where business_id = $1 order by sort, id`,
     [businessId],
   );
 

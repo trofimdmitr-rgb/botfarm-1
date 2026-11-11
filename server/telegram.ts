@@ -4,6 +4,8 @@ import { config } from "./config.js";
 export interface Sender {
   sendMessage(chatId: number, html: string, extra?: Record<string, unknown>): Promise<unknown>;
   sendPhoto(chatId: number, photo: Uint8Array, caption?: string): Promise<{ file_id: string }>;
+  /** Файл без пережатия (логотип PNG с прозрачностью). Нет в тестовых заглушках — тогда используем sendPhoto. */
+  sendDocument?(chatId: number, file: Uint8Array, filename: string, caption?: string): Promise<{ file_id: string }>;
   setChatMenuButton(chatId: number, text: string, url: string): Promise<unknown>;
 }
 
@@ -43,6 +45,13 @@ export function tg(): Sender {
       const msg = await a.sendPhoto(target, new InputFile(photo), { caption });
       const sizes = msg.photo ?? [];
       return { file_id: sizes[sizes.length - 1].file_id };
+    },
+    sendDocument: async (chatId, file, filename, caption) => {
+      const { InputFile } = await import("grammy");
+      const target = chatId < 0 ? config.tgStorageChat : chatId;
+      if (!target) throw new Error("Некуда сохранить фото: задайте TG_STORAGE_CHAT_ID");
+      const msg = await a.sendDocument(target, new InputFile(file, filename), { caption });
+      return { file_id: msg.document!.file_id };
     },
     setChatMenuButton: async (chatId, text, url) => {
       if (chatId < 0) return null; // в MAX кнопка мини-аппа настраивается в кабинете бота

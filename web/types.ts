@@ -29,6 +29,11 @@ export interface Settings {
   palette?: string;
   paletteMode?: "dark" | "light";
   iconStyle?: string;
+  /** логотип салона: круг над именем или вместо имени */
+  logoFileId?: string;
+  logoMode?: "circle" | "wordmark";
+  /** логотип в PNG с прозрачностью */
+  logoAlpha?: boolean;
 }
 
 export interface Service {
@@ -50,6 +55,26 @@ export interface Staff {
   work_hours?: Record<string, [string, string][]>;
   active?: boolean;
   sort?: number;
+  /** метка версии фото мастера в клиентской части ("" — фото нет) */
+  photo?: string;
+  /** file_id фото мастера в панели */
+  photo_file_id?: string;
+}
+
+/** Фото в портфолио: подпись, чья работа и в каком альбоме. */
+export interface Work {
+  id: number;
+  caption: string;
+  staffId: number | null;
+  albumId: number | null;
+}
+
+/** Альбом портфолио; serviceId — услуга, примерами которой он служит. */
+export interface Album {
+  id: number;
+  title: string;
+  description: string;
+  serviceId: number | null;
 }
 
 export interface PublicBusiness {
@@ -64,7 +89,7 @@ export interface PublicBusiness {
 
 export interface Boot {
   me: { id: number; name: string; isSuper: boolean };
-  business: (PublicBusiness & { services: Service[]; staff: Staff[]; portfolio: { id: number; caption: string }[] }) | null;
+  business: (PublicBusiness & { services: Service[]; staff: Staff[]; portfolio: Work[]; albums: Album[] }) | null;
   role: "super" | "owner" | "admin" | null;
   client: { name: string; phone: string } | null;
   next?: { starts_at: string; service_title: string } | null;

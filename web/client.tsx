@@ -16,8 +16,10 @@ import {
   fmtTime,
   fmtWeekday,
   haptic,
+  logoUrl,
   openLink,
   photoUrl,
+  staffPhotoUrl,
   rub,
   shareLink,
   todayIn,
@@ -25,8 +27,8 @@ import {
   MAXA,
 } from "./lib";
 import { checkPhone, maskPhone } from "../server/phone";
-import type { Boot, Booking, Service, Slot } from "./types";
-import { BackLink, Empty, ErrorBox, Field, Icon, MainButton, Spinner, useLoad } from "./ui";
+import type { Boot, Booking, Service, Slot, Work } from "./types";
+import { Avatar, BackLink, Empty, ErrorBox, Field, Icon, MainButton, Spinner, useLoad } from "./ui";
 
 type Biz = NonNullable<Boot["business"]>;
 
@@ -42,6 +44,49 @@ function nameSize(text: string): number {
   const byWord = longest <= 5 ? 76 : longest <= 7 ? 64 : longest <= 9 ? 54 : longest <= 12 ? 44 : 36;
   return Math.min(byWord, n <= 12 ? 76 : n <= 20 ? 60 : n <= 30 ? 48 : 38);
 }
+
+/**
+ * Прозрачный логотип, который почти сливается с фоном страницы (чёрная надпись на тёмной палитре),
+ * рисуем одним цветом текста — как само название. Цветной и контрастный оставляем как есть.
+ */
+function useLogoMono(url: string | null, alpha: boolean): boolean {
+  const [mono, setMono] = useState(false);
+  useEffect(() => {
+    setMono(false);
+    if (!url || !alpha) return;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const n = 40;
+        const c = document.createElement("canvas");
+        c.width = c.height = n;
+        const ctx = c.getContext("2d", { willReadFrequently: true })!;
+        ctx.drawImage(img, 0, 0, n, n);
+        const d = ctx.getImageData(0, 0, n, n).data;
+        let sum = 0, cnt = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 128) continue;
+          sum += lum(d[i], d[i + 1], d[i + 2]);
+          cnt++;
+        }
+        if (!cnt) return;
+        // цвет фона страницы — через тот же canvas (переменная может быть в любом формате)
+        ctx.clearRect(0, 0, n, n);
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#000";
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, bl] = ctx.getImageData(0, 0, 1, 1).data;
+        const a = sum / cnt, bg = lum(r, g, bl);
+        setMono((Math.max(a, bg) + 0.05) / (Math.min(a, bg) + 0.05) < 2.2);
+      } catch {}
+    };
+    img.src = url;
+  }, [url, alpha]);
+  return mono;
+}
+const lum = (r: number, g: number, b: number) => {
+  const f = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+};
 
 /** Фото проявляется плавно, когда загрузится (а не «выпрыгивает» по строкам). */
 function FadeImg(p: { src: string; alt?: string; className?: string; lazy?: boolean }) {
@@ -262,9 +307,13 @@ export function BusinessHome(p: {
   useParallax(coverRef, blobRef);
   useReveal(allPrices);
   const next = p.boot.next;
+  const logo = logoUrl(b.id, s.logoFileId);
+  const wordmark = !!logo && s.logoMode === "wordmark";
+  const mono = useLogoMono(logo, !!s.logoAlpha);
+  const logoStyle = mono && logo ? ({ "--logo": `url("${logo}")` } as React.CSSProperties) : undefined;
 
   return (
-    <div className={`page g-page g-home ${banner ? "g-has-cover" : ""}`}>
+    <div className={`page g-page g-home ${banner ? "g-has-cover" : ""} ${logo ? (wordmark ? "g-has-word" : "g-has-logo") : ""}`}>
       {/* обложка — фон шапки за текстом: в кадре середина фото, ниже размывается и растворяется */}
       {/* фон шапки обрезан своим слоем: пятно шире экрана, но страница не прокручивается вбок */}
       <div className="g-bg" aria-hidden>
@@ -280,9 +329,21 @@ export function BusinessHome(p: {
       </div>
 
       <header className="g-hero">
-        <h1 className="g-name g-shine" data-text={b.name} style={{ fontSize: nameSize(b.name) }}>
-          {b.name}
-        </h1>
+        {/* логотип: значок над названием или сам вместо названия (выбирает мастер) */}
+        {logo && !wordmark && (
+          <span className={`g-logo ${s.logoAlpha ? "g-logo-alpha" : ""} ${mono ? "g-logo-mono" : ""}`} style={logoStyle}>
+            <FadeImg src={logo} />
+          </span>
+        )}
+        {wordmark ? (
+          <h1 className={`g-wordmark ${s.logoAlpha ? "g-logo-alpha" : ""} ${mono ? "g-logo-mono" : ""}`} style={logoStyle} aria-label={b.name}>
+            <FadeImg src={logo!} alt={b.name} />
+          </h1>
+        ) : (
+          <h1 className="g-name g-shine" data-text={b.name} style={{ fontSize: nameSize(b.name) * (logo ? 0.82 : 1) }}>
+            {b.name}
+          </h1>
+        )}
         {s.description && <p className="g-lead">{s.description}</p>}
       </header>
 
@@ -422,56 +483,147 @@ export function BusinessHome(p: {
   );
 }
 
-/** Портфолио на весь экран: сетка, по тапу — фото крупно, листание стрелками/свайпом. */
-export function PortfolioScreen(p: { boot: Boot; onBack: () => void; open?: number }) {
-  const b = p.boot.business!;
-  const photos = b.portfolio;
-  const [open, setOpen] = useState<number | null>(p.open ?? null);
+/** Фото крупно: листание стрелками и свайпом, под фото — подпись и чья работа. */
+function Lightbox(p: { photos: Work[]; index: number; staffName: (id: number | null) => string | undefined; onClose: () => void }) {
+  const [i, setI] = useState(p.index);
   const [touchX, setTouchX] = useState<number | null>(null);
-  const go = (d: number) => setOpen((i) => (i === null ? i : (i + d + photos.length) % photos.length));
+  const n = p.photos.length;
+  const go = (d: number) => setI((x) => (x + d + n) % n);
+  const ph = p.photos[i];
+  if (!ph) return null;
+  const who = p.staffName(ph.staffId);
+  return (
+    <div
+      className="lightbox"
+      onClick={p.onClose}
+      onTouchStart={(e) => setTouchX(e.touches[0].clientX)}
+      onTouchEnd={(e) => {
+        if (touchX === null) return;
+        const dx = e.changedTouches[0].clientX - touchX;
+        if (Math.abs(dx) > 40 && n > 1) {
+          e.stopPropagation();
+          go(dx < 0 ? 1 : -1);
+        }
+        setTouchX(null);
+      }}
+    >
+      <img src={photoUrl(ph.id)} alt={ph.caption} onClick={(e) => e.stopPropagation()} />
+      {(ph.caption || who) && (
+        <div className="lb-cap" onClick={(e) => e.stopPropagation()}>
+          {ph.caption && <span>{ph.caption}</span>}
+          {who && <span className="lb-who">{who}</span>}
+        </div>
+      )}
+      {n > 1 && (
+        <>
+          <button className="lb-nav lb-prev" onClick={(e) => (e.stopPropagation(), go(-1))} aria-label="Предыдущее фото">
+            ‹
+          </button>
+          <button className="lb-nav lb-next" onClick={(e) => (e.stopPropagation(), go(1))} aria-label="Следующее фото">
+            ›
+          </button>
+          <div className="lb-count">
+            {pad2(i + 1)} / {pad2(n)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Работы: фильтр по мастеру (с фото), альбомы-подборки с описанием и записью на услугу, сетка, фото крупно. */
+export function PortfolioScreen(p: { boot: Boot; onBack: () => void; open?: number; onBook: (serviceId?: number) => void }) {
+  const b = p.boot.business!;
+  const all = b.portfolio;
+  const [staffId, setStaffId] = useState<number | null>(null);
+  const [albumId, setAlbumId] = useState<number | null>(null);
+  const [open, setOpen] = useState<number | null>(p.open ?? null);
+  const staffName = (id: number | null) => b.staff.find((x) => x.id === id)?.name;
+  // мастера, у которых есть работы, — фильтр нужен, только если их хотя бы двое
+  const masters = b.staff.filter((st) => all.some((ph) => ph.staffId === st.id));
+  const byStaff = staffId ? all.filter((ph) => ph.staffId === staffId) : all;
+  const albums = b.albums.filter((a) => byStaff.some((ph) => ph.albumId === a.id));
+  const album = b.albums.find((a) => a.id === albumId) ?? null;
+  const photos = album ? byStaff.filter((ph) => ph.albumId === album.id) : byStaff;
+  const svc = album?.serviceId ? b.services.find((x) => x.id === album.serviceId) : undefined;
+  useReveal(`${staffId}:${albumId}`);
+  const pick = (fn: () => void) => {
+    haptic();
+    fn();
+    setOpen(null);
+  };
+
   return (
     <div className="page g-page">
-      <BackLink onBack={p.onBack} />
-      <StepHead label={`${photos.length} фото`} title="Работы" />
+      <BackLink onBack={album ? () => setAlbumId(null) : p.onBack} />
+      <StepHead label={album ? `Альбом · ${photos.length} фото` : `${photos.length} фото`} title={album ? album.title : "Работы"} />
+
+      {masters.length > 1 && (
+        <div className="g-masters g-noswipe">
+          <button className={`g-master ${staffId === null ? "on" : ""}`} onClick={() => pick(() => setStaffId(null))}>
+            <span className="ava g-master-all">
+              <Icon name="users" size={22} />
+            </span>
+            <span>Все</span>
+          </button>
+          {masters.map((st) => (
+            <button key={st.id} className={`g-master ${staffId === st.id ? "on" : ""}`} onClick={() => pick(() => setStaffId(staffId === st.id ? null : st.id))}>
+              <Avatar src={staffPhotoUrl(st.id, st.photo)} name={st.name} size={56} />
+              <span>{st.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {album && (album.description || svc) && (
+        <section className="g-album-head g-reveal">
+          {album.description && <p className="g-album-desc">{album.description}</p>}
+          {svc && (
+            <>
+              <p className="g-album-svc">
+                Услуга: <b>{svc.title}</b> · {duration(svc.duration_min)}
+              </p>
+              <button className="g-cta g-cta-shine g-cta-sm" onClick={() => (haptic(), p.onBook(svc.id))}>
+                <span>Записаться</span>
+                <span className="g-cta-pill">{rub(svc.price, svc.price_from)}</span>
+              </button>
+            </>
+          )}
+        </section>
+      )}
+
+      {!album && albums.length > 0 && (
+        <section className="g-sec g-reveal">
+          <h2 className="g-sec-title g-sec-title-static">Альбомы</h2>
+          <div className="g-albums g-noswipe">
+            {albums.map((a) => {
+              const inA = byStaff.filter((ph) => ph.albumId === a.id);
+              return (
+                <button key={a.id} className="g-album" onClick={() => pick(() => (setAlbumId(a.id), window.scrollTo(0, 0)))}>
+                  <span className="g-album-cover">
+                    {inA.slice(0, 3).map((ph, k) => (
+                      <FadeImg key={ph.id} className={`g-album-img g-album-img-${k}`} src={photoUrl(ph.id)} lazy />
+                    ))}
+                  </span>
+                  <span className="g-album-title">{a.title}</span>
+                  <span className="g-album-sub">{inA.length} фото</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {!album && albums.length > 0 && <h2 className="g-sec-title g-sec-title-static g-sec-all">Все работы</h2>}
       {!photos.length && <Empty title="Фото пока нет" />}
-      <div className="gallery gallery-grid g-grid">
+      <div className="gallery gallery-grid g-grid" key={`${staffId}:${albumId}`}>
         {photos.map((ph, i) => (
           <button key={ph.id} className="gallery-item" onClick={() => setOpen(i)} style={{ animationDelay: `${Math.min(i, 12) * 0.04}s` }}>
             <FadeImg src={photoUrl(ph.id)} alt={ph.caption} lazy />
           </button>
         ))}
       </div>
-      {open !== null && (
-        <div
-          className="lightbox"
-          onClick={() => setOpen(null)}
-          onTouchStart={(e) => setTouchX(e.touches[0].clientX)}
-          onTouchEnd={(e) => {
-            if (touchX === null) return;
-            const dx = e.changedTouches[0].clientX - touchX;
-            if (Math.abs(dx) > 40) {
-              e.stopPropagation();
-              go(dx < 0 ? 1 : -1);
-            }
-            setTouchX(null);
-          }}
-        >
-          <img src={photoUrl(photos[open].id)} alt={photos[open].caption} onClick={(e) => e.stopPropagation()} />
-          {photos.length > 1 && (
-            <>
-              <button className="lb-nav lb-prev" onClick={(e) => (e.stopPropagation(), go(-1))} aria-label="Предыдущее фото">
-                ‹
-              </button>
-              <button className="lb-nav lb-next" onClick={(e) => (e.stopPropagation(), go(1))} aria-label="Следующее фото">
-                ›
-              </button>
-              <div className="lb-count">
-                {pad2(open + 1)} / {pad2(photos.length)}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+      {open !== null && <Lightbox photos={photos} index={open} staffName={masters.length > 1 ? staffName : () => undefined} onClose={() => setOpen(null)} />}
     </div>
   );
 }
@@ -503,6 +655,7 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
   const [name, setName] = useState(p.boot.client?.name || p.boot.me.name || "");
   const [phone, setPhone] = useState(maskPhone(p.boot.client?.phone || ""));
   const [phoneErr, setPhoneErr] = useState<string | null>(null);
+  const [phoneProof, setPhoneProof] = useState("");
   // маска +7 (999) 123-45-67; стирание разделителя стирает и цифру перед ним
   const onPhone = (v: string) => {
     if (v.length < phone.length && v.replace(/\D/g, "") === phone.replace(/\D/g, "")) v = v.replace(/\d(?=\D*$)/, "");
@@ -527,13 +680,22 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
     }
     WA.requestContact((ok: boolean, res: any) => {
       const raw: string | undefined = res?.responseUnsafe?.contact?.phone_number;
+      // подписанный ответ Telegram — сервер по нему поймёт, что номер настоящий, и свяжет аккаунты
+      if (ok && typeof res?.response === "string") setPhoneProof(res.response);
       if (ok && raw) put(raw);
       else if (ok) alertMsg("Номер отправлен в чат с ботом. Если поле не заполнилось — введите его вручную.");
     });
   };
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [comment, setComment] = useState("");
-  const [done, setDone] = useState<{ id: number; starts_at: string } | null>(null);
+  const [done, setDone] = useState<{ id: number; starts_at: string; staff_id?: number } | null>(null);
+  const [examples, setExamples] = useState<{ photos: Work[]; index: number } | null>(null);
+  // «Примеры работ» к услуге — фото из альбомов, привязанных к ней
+  const examplesOf = (serviceId: number) => {
+    const ids = new Set(b.albums.filter((a) => a.serviceId === serviceId).map((a) => a.id));
+    return ids.size ? b.portfolio.filter((ph) => ph.albumId !== null && ids.has(ph.albumId)) : [];
+  };
+  const staffName = (id: number | null) => (multiStaff ? b.staff.find((x) => x.id === id)?.name : undefined);
 
   const step: Step = done ? "done" : !service ? "service" : !staffChosen ? "staff" : !slot ? "time" : "details";
   // на шаге с контактами внизу кнопка «Записаться на …» — нижнюю панель прячем
@@ -568,33 +730,53 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
         <>
           <StepHead label={stepLabel("service")} title="Что делаем?" />
           <div className="g-group g-pad">
-            {b.services.map((svc) => (
-              <button
-                key={svc.id}
-                className="g-item g-row"
-                onClick={() => {
-                  haptic();
-                  setService(svc);
-                }}
-              >
-                <span className="g-item-main">
-                  <span className="g-item-title">{svc.title}</span>
-                  <span className="g-item-sub">
-                    {duration(svc.duration_min)}
-                    {svc.description ? ` · ${svc.description}` : ""}
-                  </span>
-                </span>
-                <span className="g-price">{rub(svc.price, svc.price_from)}</span>
-              </button>
-            ))}
+            {b.services.map((svc) => {
+              const ex = examplesOf(svc.id);
+              return (
+                <div key={svc.id} className={`g-svc ${ex.length ? "g-svc-ex" : ""}`}>
+                  <button
+                    className="g-item g-row"
+                    onClick={() => {
+                      haptic();
+                      setService(svc);
+                    }}
+                  >
+                    <span className="g-item-main">
+                      <span className="g-item-title">{svc.title}</span>
+                      <span className="g-item-sub">
+                        {duration(svc.duration_min)}
+                        {svc.description ? ` · ${svc.description}` : ""}
+                      </span>
+                    </span>
+                    <span className="g-price">{rub(svc.price, svc.price_from)}</span>
+                  </button>
+                  {ex.length > 0 && (
+                    <div className="g-examples g-noswipe" aria-label="Примеры работ">
+                      <span className="g-examples-k">Примеры работ</span>
+                      {ex.slice(0, 6).map((ph, i) => (
+                        <button key={ph.id} className="g-example" onClick={() => setExamples({ photos: ex, index: i })} aria-label={ph.caption || "Фото работы"}>
+                          <FadeImg src={photoUrl(ph.id)} alt={ph.caption} lazy />
+                        </button>
+                      ))}
+                      {ex.length > 6 && (
+                        <button className="g-example g-example-more" onClick={() => setExamples({ photos: ex, index: 6 })}>
+                          +{ex.length - 6}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+          {examples && <Lightbox photos={examples.photos} index={examples.index} staffName={staffName} onClose={() => setExamples(null)} />}
         </>
       )}
 
       {step === "staff" && service && (
         <>
           <StepHead label={stepLabel("staff")} title="Кто примет?" sub={`${service.title} · ${duration(service.duration_min)}`} />
-          <div className="g-group g-pad">
+          <div className="g-group g-pad g-staff-list">
             <button
               className="g-item g-row"
               onClick={() => {
@@ -603,6 +785,9 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
                 setStaffChosen(true);
               }}
             >
+              <span className="ava g-master-all" style={{ width: 48, height: 48 }} aria-hidden>
+                <Icon name="users" size={22} />
+              </span>
               <span className="g-item-main">
                 <span className="g-item-title">Любой свободный</span>
                 <span className="g-item-sub">Покажем больше вариантов времени</span>
@@ -619,6 +804,7 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
                   setStaffChosen(true);
                 }}
               >
+                <Avatar src={staffPhotoUrl(st.id, st.photo)} name={st.name} size={48} />
                 <span className="g-item-main">
                   <span className="g-item-title">{st.name}</span>
                   {st.description && <span className="g-item-sub">{st.description}</span>}
@@ -727,6 +913,7 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
                   start: slot.start,
                   name,
                   phone,
+                  phoneProof: phoneProof || undefined,
                   answers,
                   comment,
                 });
@@ -751,7 +938,7 @@ export function BookFlow(p: { boot: Boot; serviceId?: number; onBack: () => void
 }
 
 /** «Вы записаны»: постер с текучим пятном — его удобно заскринить в сторис или переслать. */
-function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at: string }; name: string; onMy: () => void }) {
+function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at: string; staff_id?: number }; name: string; onMy: () => void }) {
   const b = p.boot.business!;
   const s = b.settings;
   const tz = b.timezone;
@@ -761,6 +948,9 @@ function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at
   const first = p.name.trim().split(/\s+/)[0] || "";
   const no = String(p.done.id).padStart(4, "0");
   const shareUrl = inMax ? p.boot.share?.max || p.boot.share?.tg : p.boot.share?.tg;
+  // «Вас ждёт <мастер>» — когда мастеров несколько (с одним это и так понятно)
+  const master = b.staff.length > 1 ? b.staff.find((x) => x.id === p.done.staff_id) : undefined;
+  const masterPhoto = master ? staffPhotoUrl(master.id, master.photo) : null;
   return (
     <div className="page g-page g-done">
       <header className="g-head">
@@ -787,6 +977,15 @@ function Ticket(p: { boot: Boot; service: Service; done: { id: number; starts_at
           <span>{p.service.title}</span>
           {s.address && <span>{s.address}</span>}
         </div>
+        {master && (
+          <div className="g-poster-master">
+            <Avatar src={masterPhoto} name={master.name} size={44} />
+            <span>
+              <span className="g-k">Вас ждёт</span>
+              <b>{master.name}</b>
+            </span>
+          </div>
+        )}
         <div className="g-poster-foot">
           <Barcode seed={`${b.slug}${no}`} />
           <span>

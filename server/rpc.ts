@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
-import { type InitData } from "./auth.js";
+import { type InitData, verifyContactProof } from "./auth.js";
+import { checkPhone } from "./phone.js";
 import { adminLink, clientLink, config, inviteLink, maxAdminLink, maxClientLink, maxInviteLink, webAppUrl } from "./config.js";
 import { db } from "./db.js";
 import { esc } from "./format.js";
@@ -47,10 +48,11 @@ function links(b: Business) {
 }
 
 async function catalog(b: Business) {
-  const [services, staff, portfolio] = await Promise.all([
+  const [services, staff, portfolio, albums] = await Promise.all([
     store.listServices(db(), b.id),
     store.listStaff(db(), b.id),
     store.listPortfolio(db(), b.id),
+    store.listAlbums(db(), b.id),
   ]);
   return {
     services: services.map(({ id, title, description, price, price_from, duration_min }) => ({
@@ -61,8 +63,10 @@ async function catalog(b: Business) {
       price_from,
       duration_min,
     })),
-    staff: staff.map(({ id, name, description }) => ({ id, name, description })),
-    portfolio: portfolio.map((p) => ({ id: p.id, caption: p.caption })),
+    // photo — метка версии фото мастера (меняется при замене, чтобы не показывать старое из кэша)
+    staff: staff.map(({ id, name, description, photo_file_id }) => ({ id, name, description, photo: photoTag(photo_file_id) })),
+    portfolio: portfolio.map((p) => ({ id: p.id, caption: p.caption, staffId: p.staff_id == null ? null : Number(p.staff_id), albumId: p.album_id == null ? null : Number(p.album_id) })),
+    albums: albums.map((a) => ({ id: Number(a.id), title: a.title, description: a.description, serviceId: a.service_id == null ? null : Number(a.service_id) })),
   };
 }
 
@@ -164,7 +168,11 @@ async function book(ctx: Ctx, p: P) {
   // номер запоминаем у аккаунта; если тот же номер есть в другом мессенджере — связываем и оповещаем там
   if (booking.client_phone) {
     try {
-      await accountLinks.rememberPhone(db(), ctx.init.user.id, booking.client_phone);
+      // «Взять номер из Telegram» присылает подписанный контакт: тогда номер подтверждён и связывает аккаунты
+      const proof = verifyContactProof(String(p.phoneProof ?? ""), config.botToken, ctx.init.user.id);
+      const pc = proof ? checkPhone(proof.startsWith("+") ? proof : `+${proof}`) : null;
+      const proofOk = !!pc && pc.ok && pc.phone === booking.client_phone;
+      await accountLinks.rememberPhone(db(), ctx.init.user.id, booking.client_phone, proofOk);
       const offers = await accountLinks.autoLink(db(), ctx.init.user.id, booking.client_phone, {
         businessName: b.name,
         startsAt: String(booking.starts_at),
@@ -175,7 +183,7 @@ async function book(ctx: Ctx, p: P) {
       console.error("link offers", e);
     }
   }
-  return { id: booking.id, starts_at: booking.starts_at };
+  return { id: booking.id, starts_at: booking.starts_at, staff_id: Number(booking.staff_id) };
 }
 
 async function myBookings(ctx: Ctx, p: P) {
@@ -389,7 +397,7 @@ const isPalette = (v: unknown) => typeof v === "string" && (PALETTES.includes(v)
 
 const SETTINGS_KEYS: (keyof BusinessSettings)[] = [
   "emoji", "accent", "description", "address", "contactPhone", "links", "welcome", "afterBookingText", "labels",
-  "stepMin", "minLeadMin", "maxDaysAhead", "cancelHours", "chooseStaff", "requirePhone", "remind2h", "fields", "palette", "paletteMode", "iconStyle",
+  "stepMin", "minLeadMin", "maxDaysAhead", "cancelHours", "chooseStaff", "requirePhone", "remind2h", "fields", "palette", "paletteMode", "iconStyle", "logoMode",
 ];
 
 async function saveSettings(ctx: BizCtx, p: P) {
@@ -419,6 +427,7 @@ async function saveSettings(ctx: BizCtx, p: P) {
   if (settings.accent && !/^#[0-9a-f]{6}$/i.test(settings.accent)) delete settings.accent;
   if ("palette" in settings && !isPalette(settings.palette)) delete settings.palette;
   if ("paletteMode" in settings && settings.paletteMode !== "dark" && settings.paletteMode !== "light") delete settings.paletteMode;
+  if ("logoMode" in settings && settings.logoMode !== "circle" && settings.logoMode !== "wordmark") delete settings.logoMode;
   if ("iconStyle" in settings && !["regular", "thin", "bold", "duo", "circle"].includes(String(settings.iconStyle))) delete settings.iconStyle;
   const b = await store.updateBusiness(db(), ctx.business.id, {
     name: p.name ? str(p.name, 80) : undefined,
@@ -428,23 +437,118 @@ async function saveSettings(ctx: BizCtx, p: P) {
   return publicBusiness(b);
 }
 
-async function portfolioAdd(ctx: BizCtx, p: P) {
+const photoTag = (fileId: string | null | undefined) => (fileId ? fileId.slice(-10) : "");
+
+function imageBuf(p: P): Buffer {
   const b64 = String(p.imageBase64 ?? "").replace(/^data:image\/\w+;base64,/, "");
   const buf = Buffer.from(b64, "base64");
-  if (buf.length < 1000) throw new UserError("Не удалось прочитать фото");
+  if (buf.length < 500) throw new UserError("Не удалось прочитать фото");
   if (buf.length > 3_500_000) throw new UserError("Фото слишком большое");
+  return buf;
+}
+
+/** id мастера/альбома/услуги из запроса — только если он принадлежит этому бизнесу (иначе null). */
+async function ownId(table: "staff" | "albums" | "services", v: unknown, businessId: number): Promise<number | null> {
+  if (v == null || v === "") return null;
+  const id = int(v, table);
+  const [row] = await db().query(`select 1 from ${table} where id = $1 and business_id = $2`, [id, businessId]);
+  if (!row) throw new UserError("Не найдено");
+  return id;
+}
+
+async function portfolioAdd(ctx: BizCtx, p: P) {
+  const buf = imageBuf(p);
   const count = await db().query(`select count(*)::int as n from portfolio where business_id = $1`, [ctx.business.id]);
-  if (count[0].n >= 60) throw new UserError("В портфолио максимум 60 фото");
+  if (count[0].n >= store.PORTFOLIO_MAX) throw new UserError(`В портфолио максимум ${store.PORTFOLIO_MAX} фото`);
+  const staffId = await ownId("staff", p.staffId, ctx.business.id);
+  const albumId = await ownId("albums", p.albumId, ctx.business.id);
   const { file_id } = await tg().sendPhoto(
     ctx.init.user.id,
     new Uint8Array(buf),
     `Добавлено в портфолио «${ctx.business.name}»`,
   );
   const [row] = await db().query(
-    `insert into portfolio (business_id, file_id, caption, sort) values ($1, $2, $3, $4) returning id, caption`,
-    [ctx.business.id, file_id, str(p.caption, 200), 0],
+    `insert into portfolio (business_id, file_id, caption, sort, staff_id, album_id) values ($1, $2, $3, $4, $5, $6)
+     returning id, caption, staff_id, album_id`,
+    [ctx.business.id, file_id, str(p.caption, 300), 0, staffId, albumId],
   );
   return row;
+}
+
+/** Подпись фото, чьё оно (мастер) и в каком альбоме. */
+async function portfolioUpdate(ctx: BizCtx, p: P) {
+  const id = int(p.id, "id");
+  const staffId = await ownId("staff", p.staffId, ctx.business.id);
+  const albumId = await ownId("albums", p.albumId, ctx.business.id);
+  const [row] = await db().query(
+    `update portfolio set caption = $3, staff_id = $4, album_id = $5 where id = $1 and business_id = $2
+     returning id, caption, staff_id, album_id`,
+    [id, ctx.business.id, str(p.caption, 300), staffId, albumId],
+  );
+  if (!row) throw new UserError("Фото не найдено");
+  return row;
+}
+
+async function albumSave(ctx: BizCtx, p: P) {
+  const a = (p.album ?? {}) as P;
+  const title = str(a.title, 60);
+  if (!title) throw new UserError("Назовите альбом");
+  const serviceId = await ownId("services", a.serviceId, ctx.business.id);
+  const vals = [ctx.business.id, title, str(a.description, 600), serviceId];
+  if (a.id) {
+    const [row] = await db().query(
+      `update albums set title = $2, description = $3, service_id = $4 where business_id = $1 and id = $5 returning *`,
+      [...vals, int(a.id, "id")],
+    );
+    if (!row) throw new UserError("Альбом не найден");
+    return row;
+  }
+  const [n] = await db().query(`select count(*)::int as n from albums where business_id = $1`, [ctx.business.id]);
+  if (n.n >= 30) throw new UserError("Максимум 30 альбомов");
+  const [row] = await db().query(
+    `insert into albums (business_id, title, description, service_id, sort) values ($1, $2, $3, $4, $5) returning *`,
+    [...vals, n.n],
+  );
+  return row;
+}
+
+async function albumRemove(ctx: BizCtx, p: P) {
+  // фото остаются в портфолио, просто без альбома
+  await db().query(`delete from albums where id = $1 and business_id = $2`, [int(p.id, "id"), ctx.business.id]);
+  return { ok: true };
+}
+
+/** Фото мастера (для выбора мастера в записи, фильтра в «Работах» и постера «Вы записаны»). */
+async function staffPhotoSet(ctx: BizCtx, p: P) {
+  const staffId = await ownId("staff", p.staffId, ctx.business.id);
+  if (!staffId) throw new UserError("Выберите мастера");
+  const { file_id } = await tg().sendPhoto(ctx.init.user.id, new Uint8Array(imageBuf(p)), `Фото мастера «${ctx.business.name}»`);
+  await db().query(`update staff set photo_file_id = $2 where id = $1`, [staffId, file_id]);
+  return { photo: photoTag(file_id) };
+}
+
+async function staffPhotoRemove(ctx: BizCtx, p: P) {
+  const staffId = await ownId("staff", p.staffId, ctx.business.id);
+  await db().query(`update staff set photo_file_id = '' where id = $1`, [staffId]);
+  return { ok: true };
+}
+
+/** Логотип: PNG храним файлом (без пережатия, прозрачность сохраняется), остальное — фото. */
+async function logoSet(ctx: BizCtx, p: P) {
+  const buf = imageBuf(p);
+  const png = /^data:image\/png/.test(String(p.imageBase64 ?? ""));
+  const t = tg();
+  const caption = `Логотип «${ctx.business.name}»`;
+  const { file_id } =
+    png && t.sendDocument ? await t.sendDocument(ctx.init.user.id, new Uint8Array(buf), "logo.png", caption) : await t.sendPhoto(ctx.init.user.id, new Uint8Array(buf), caption);
+  // logoAlpha — логотип с прозрачностью: его кладём на подложку целиком, а не обрезаем кругом
+  const b = await store.updateBusiness(db(), ctx.business.id, { settings: { logoFileId: file_id, logoAlpha: png } });
+  return publicBusiness(b);
+}
+
+async function logoRemove(ctx: BizCtx) {
+  const b = await store.updateBusiness(db(), ctx.business.id, { settings: { logoFileId: "", logoAlpha: false } });
+  return publicBusiness(b);
 }
 
 async function portfolioRemove(ctx: BizCtx, p: P) {
@@ -469,13 +573,44 @@ async function bannerRemove(ctx: BizCtx) {
   return publicBusiness(b);
 }
 
+/**
+ * Клиенты мастера: один номер — одна строка. Аккаунты с тем же номером (два Telegram, Telegram + MAX) и связанные
+ * аккаунты одного человека склеиваются: все имена, записи и последний визит — вместе.
+ */
 async function adminClients(ctx: BizCtx) {
-  return db().query(
-    `select c.tg_id, c.name, c.phone, c.last_seen, c.blocked_bot,
+  const rows = await db().query<any>(
+    `select c.tg_id, c.name, c.phone, c.last_seen, c.blocked_bot, coalesce(u.person_id, c.tg_id) as person,
        (select count(*) from bookings b where b.business_id = c.business_id and b.client_tg_id = c.tg_id and b.status in ('confirmed','done'))::int as visits
-     from clients c where c.business_id = $1 order by c.last_seen desc limit 500`,
+     from clients c left join users u on u.tg_id = c.tg_id
+     where c.business_id = $1 order by c.last_seen desc limit 1000`,
     [ctx.business.id],
   );
+  return groupClients(rows);
+}
+
+export function groupClients(rows: any[]) {
+  const byKey = new Map<string, any>();
+  const personKey = new Map<string, string>();
+  for (const r of rows) {
+    const digits = String(r.phone ?? "").replace(/\D/g, "").replace(/^8(?=\d{10}$)/, "7");
+    const pk = `p:${r.person}`;
+    const key = digits ? `t:${digits}` : personKey.get(pk) ?? pk;
+    personKey.set(pk, key);
+    const g = byKey.get(key);
+    if (!g) {
+      byKey.set(key, {
+        tg_id: Number(r.tg_id), tg_ids: [Number(r.tg_id)], name: r.name, names: r.name ? [r.name] : [], phone: r.phone,
+        last_seen: r.last_seen, blocked_bot: r.blocked_bot, visits: r.visits,
+      });
+    } else {
+      g.tg_ids.push(Number(r.tg_id));
+      if (r.name && !g.names.some((n: string) => n.toLowerCase() === String(r.name).toLowerCase())) g.names.push(r.name);
+      g.visits += r.visits;
+      g.blocked_bot = g.blocked_bot && r.blocked_bot;
+      if (!g.phone && r.phone) g.phone = r.phone;
+    }
+  }
+  return [...byKey.values()].map((g) => ({ ...g, name: g.names.join(" · ") }));
 }
 
 async function adminInvite(ctx: BizCtx, p: P) {
@@ -566,8 +701,24 @@ const methods: Record<string, { need: Need; fn: (ctx: any, p: P) => Promise<unkn
   "admin.addTimeOff": { need: "admin", fn: addTimeOff },
   "admin.removeTimeOff": { need: "admin", fn: removeTimeOff },
   "admin.saveSettings": { need: "admin", fn: saveSettings },
-  "admin.portfolio": { need: "admin", fn: (ctx: BizCtx) => store.listPortfolio(db(), ctx.business.id).then((l) => l.map(({ id, caption }) => ({ id, caption }))) },
+  "admin.portfolio": {
+    need: "admin",
+    fn: async (ctx: BizCtx) => {
+      const [photos, albums] = await Promise.all([store.listPortfolio(db(), ctx.business.id), store.listAlbums(db(), ctx.business.id)]);
+      return {
+        photos: photos.map((x) => ({ id: x.id, caption: x.caption, staffId: x.staff_id == null ? null : Number(x.staff_id), albumId: x.album_id == null ? null : Number(x.album_id) })),
+        albums: albums.map((a) => ({ id: Number(a.id), title: a.title, description: a.description, serviceId: a.service_id == null ? null : Number(a.service_id) })),
+      };
+    },
+  },
   "admin.portfolioAdd": { need: "admin", fn: portfolioAdd },
+  "admin.portfolioUpdate": { need: "admin", fn: portfolioUpdate },
+  "admin.albumSave": { need: "admin", fn: albumSave },
+  "admin.albumRemove": { need: "admin", fn: albumRemove },
+  "admin.staffPhotoSet": { need: "admin", fn: staffPhotoSet },
+  "admin.staffPhotoRemove": { need: "admin", fn: staffPhotoRemove },
+  "admin.logoSet": { need: "admin", fn: logoSet },
+  "admin.logoRemove": { need: "admin", fn: logoRemove },
   "admin.bannerSet": { need: "admin", fn: bannerSet },
   "admin.bannerRemove": { need: "admin", fn: bannerRemove },
   "admin.portfolioRemove": { need: "admin", fn: portfolioRemove },

@@ -53,8 +53,37 @@ for (const [i, [tpl, name]] of demo.entries()) {
         bannerFileId: "demo-banner",
       },
     });
+    // логотип-значок, альбом «Маникюр» к услуге и подписи к фото
+    await store.updateBusiness(db, b.id, { settings: { logoFileId: "demo-logo-circle", logoAlpha: true, logoMode: "circle" } });
+    const [svc] = await db.query(`select id from services where business_id = $1 order by sort offset 1 limit 1`, [b.id]);
+    const [al] = await db.query(
+      `insert into albums (business_id, title, description, service_id, sort) values ($1, 'Маникюр', 'Аппаратный маникюр с покрытием гель-лаком: выравнивание, укрепление, держится 3–4 недели.', $2, 0) returning id`,
+      [b.id, svc.id],
+    );
+    const [al2] = await db.query(`insert into albums (business_id, title, description, sort) values ($1, 'Дизайн', 'Втирка, стемпинг, френч — по вашему фото.', 1) returning id`, [b.id]);
+    const caps = ["Нюд с блёстками", "Френч", "", "Втирка «кошачий глаз»", "", "Укрепление"];
     for (let k = 0; k < 6; k++) {
-      await db.query(`insert into portfolio (business_id, file_id, caption, sort) values ($1, $2, '', $3)`, [b.id, `demo-${k}`, k]);
+      await db.query(`insert into portfolio (business_id, file_id, caption, sort, album_id) values ($1, $2, $3, $4, $5)`, [b.id, `demo-${k}`, caps[k], k, k < 3 ? al.id : k < 5 ? al2.id : null]);
+    }
+  }
+  if (i === 1) {
+    // у мастеров барбершопа — фото
+    await db.query(`update staff set photo_file_id = 'demo-staff-' || id where business_id = $1`, [b.id]);
+  }
+  if (i === 3) {
+    // логотип-надпись вместо названия, два мастера с фото, работы по мастерам и альбом к услуге
+    await store.updateBusiness(db, b.id, { settings: { logoFileId: "demo-logo-word", logoAlpha: true, logoMode: "wordmark", chooseStaff: true } });
+    const [st1] = await db.query(`select id from staff where business_id = $1`, [b.id]);
+    await db.query(`update staff set name = 'Ольга', photo_file_id = 'demo-staff-' || id where id = $1`, [st1.id]);
+    const [st2] = await db.query(
+      `insert into staff (business_id, name, description, work_hours, active, sort, photo_file_id) select business_id, 'Ирина', 'Спортивный массаж', work_hours, true, 1, '' from staff where id = $1 returning id`,
+      [st1.id],
+    );
+    await db.query(`update staff set photo_file_id = 'demo-staff-' || id where id = $1`, [st2.id]);
+    const [svc] = await db.query(`select id from services where business_id = $1 order by sort limit 1`, [b.id]);
+    const [al] = await db.query(`insert into albums (business_id, title, description, service_id, sort) values ($1, 'Классический массаж', 'Расслабляющий массаж всего тела, 60 минут.', $2, 0) returning id`, [b.id, svc.id]);
+    for (let k = 0; k < 6; k++) {
+      await db.query(`insert into portfolio (business_id, file_id, caption, sort, album_id, staff_id) values ($1, $2, $3, $4, $5, $6)`, [b.id, `demo-m${k}`, k % 2 ? "Кабинет" : "", k, k < 4 ? al.id : null, k % 2 ? st2.id : st1.id]);
     }
   }
 }
@@ -86,6 +115,23 @@ createServer(async (req, res) => {
       return;
     }
     // фото хранятся в Telegram, которого локально нет — отдаём картинку-заглушку
+    if (url.pathname === "/api/photo" && url.searchParams.has("logo")) {
+      // логотип с прозрачным фоном: тёмный (проверка «сливается с тёмной темой») — надпись или значок
+      const word = url.searchParams.get("logo") !== "1";
+      res.writeHead(200, { "content-type": "image/svg+xml" });
+      res.end(
+        word
+          ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 160"><path d="M40 120 C 60 30, 120 30, 130 80 S 200 140, 220 50" fill="none" stroke="#2a1e3a" stroke-width="14" stroke-linecap="round"/><text x="250" y="105" font-family="Georgia, serif" font-style="italic" font-size="74" fill="#2a1e3a">Ольга</text></svg>`
+          : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><path d="M100 30 C 130 70, 160 90, 100 170 C 40 90, 70 70, 100 30Z" fill="#c2185b"/><circle cx="100" cy="105" r="22" fill="#fff"/></svg>`,
+      );
+      return;
+    }
+    if (url.pathname === "/api/photo" && url.searchParams.has("staff")) {
+      const hue = (Number(url.searchParams.get("staff")) * 83) % 360;
+      res.writeHead(200, { "content-type": "image/svg+xml" });
+      res.end(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="hsl(${hue},35%,72%)"/><circle cx="100" cy="82" r="38" fill="hsl(${hue},30%,40%)"/><path d="M30 200 C 40 130, 160 130, 170 200Z" fill="hsl(${hue},30%,40%)"/></svg>`);
+      return;
+    }
     if (url.pathname === "/api/photo") {
       const hue = url.searchParams.has("banner") ? (Number(url.searchParams.get("banner")) * 47 + 290) % 360 : (Number(url.searchParams.get("id")) * 47) % 360;
       res.writeHead(200, { "content-type": "image/svg+xml" });
