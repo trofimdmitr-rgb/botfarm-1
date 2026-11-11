@@ -134,9 +134,21 @@ export function glowFor(palette: string | undefined, mode: string | undefined, t
   const pastel = PASTELS.find((g) => g.id === p);
   if (pastel) return fromPastel(pastel);
   if (p === BW_ID) return bw(dark);
-  if (p === "banner" && tone) return build(colorFromHex(tone, "banner", "Из обложки"), dark);
-  if (/^#[0-9a-f]{6}$/i.test(p)) return build(colorFromHex(p, p, "Свой цвет"), dark);
+  // «из обложки» и свой цвет: те же переливающиеся пятна плюс тихий узор-искры цвета палитры
+  if (p === "banner" && tone) return withSparkles(build(colorFromHex(tone, "banner", "Из обложки"), dark));
+  if (/^#[0-9a-f]{6}$/i.test(p)) return withSparkles(build(colorFromHex(p, p, "Свой цвет"), dark));
   return build(COLORS[0], dark);
+}
+
+function withSparkles(g: Glow): Glow {
+  return { ...g, pattern: "sparkles", patternColor: g.dark ? hexMix(g.a, "#000000", 0.62) : hexMix(g.a, g.bg, 0.5) };
+}
+
+/** Смешать два #rrggbb (t — доля второго); узор рисуется SVG, там color-mix не работает. */
+function hexMix(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const ch = (v: number, sh: number) => (v >> sh) & 255;
+  return "#" + [16, 8, 0].map((sh) => Math.round(ch(pa, sh) * (1 - t) + ch(pb, sh) * t).toString(16).padStart(2, "0")).join("");
 }
 
 /** Превью цвета в настройках: три ярких цвета пятна. */
@@ -157,9 +169,9 @@ export function glowVars(g: Glow): Record<string, string> {
     "--head": g.sub,
     "--link": g.dark ? g.a : g.ink,
     "--btn": g.dark ? "#ffffff" : g.ink,
-    "--btn-text": g.dark ? DARK_BG : g.ctaText,
+    "--btn-text": g.dark ? DARK_BG : g.bg, // кнопка цвета текста — надпись цвета фона, никогда не сливается
     "--accent": g.dark ? g.a : g.ink,
-    "--accent-text": g.dark ? g.ctaText : g.ctaText,
+    "--accent-text": g.dark ? DARK_BG : g.bg,
     "--sep": g.dark ? "rgba(255,255,255,.1)" : mix(g.ink, 16),
     "--soft": g.dark ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.45)",
     "--tile": g.dark ? "rgba(255,255,255,.07)" : "rgba(255,255,255,.42)",
@@ -313,5 +325,6 @@ function hslHex(h: number, s: number, l: number): string {
 
 /** Тема приложения из палитры (тот же формат, что у темы от баннера). */
 export function glowTheme(g: Glow): import("./lib").Theme {
-  return { tone: g.bg, light: !g.dark, vars: glowVars(g), btn: g.dark ? g.cta : g.ink, btnText: g.ctaText, glow: g };
+  // нижняя кнопка Telegram — как «Записаться»: цвет кнопки палитры и подобранный к нему цвет надписи
+  return { tone: g.bg, light: !g.dark, vars: glowVars(g), btn: g.cta, btnText: g.ctaText, glow: g };
 }

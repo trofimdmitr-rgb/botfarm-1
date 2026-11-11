@@ -333,13 +333,21 @@ const ICONS: Record<string, string> = {
   calendarPlus: "M5 5h14v15H5zM5 10h14M9 3v4M15 3v4M12 12.5v5M9.5 15h5",
   list: "M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01",
 };
+/** Значок: все в одном стиле (линии), толщину и заливку задаёт выбранный мастером стиль — класс ic-* на <html>. */
 export function Icon({ name, size = 18 }: { name: keyof typeof ICONS | string; size?: number }) {
-  const filled = name === "pin" || name === "phone";
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className="icon"
-      fill={filled ? "currentColor" : "none"} stroke={filled ? "none" : "currentColor"}
-      strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden className="icon" data-i={name}
+      fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <path d={ICONS[name]} />
     </svg>
   );
 }
+
+/** Стили значков, из которых выбирает мастер (Настройки → Значки). */
+export const ICON_STYLES = [
+  { id: "regular", label: "Обычные" },
+  { id: "thin", label: "Тонкие" },
+  { id: "bold", label: "Жирные" },
+  { id: "duo", label: "Двухцветные" },
+  { id: "circle", label: "В кружочках" },
+] as const;

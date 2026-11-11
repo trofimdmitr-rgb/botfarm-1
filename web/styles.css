@@ -895,3 +895,126 @@ html:not(.glow-dark) .g-veil { background: color-mix(in srgb, var(--text) 55%, #
 .screen.g-enter-left { animation: g-from-left 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes g-from-right { from { transform: translate3d(60px, 0, 0); opacity: 0.4; } to { transform: none; opacity: 1; } }
 @keyframes g-from-left { from { transform: translate3d(-60px, 0, 0); opacity: 0.4; } to { transform: none; opacity: 1; } }
+
+/* превью палитр в настройках: маленькая живая страница — фон, узор, переливающиеся пятна, заголовок, кнопка */
+.pv-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; padding: 12px 12px 6px; }
+.pv { display: flex; flex-direction: column; align-items: stretch; gap: 6px; border: 0; padding: 0; background: none; color: var(--text); cursor: pointer; min-width: 0; text-align: center; }
+.pv-card {
+  position: relative; display: block; aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden; isolation: isolate;
+  background: var(--bg); box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.22); transition: transform 0.15s, box-shadow 0.2s;
+}
+.pv:active .pv-card { transform: scale(0.96); }
+.pv-on .pv-card { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px currentColor; }
+.pv-blobs { position: absolute; inset: 0; }
+.pv-blobs i { position: absolute; display: block; border-radius: 50%; will-change: transform, opacity; }
+.pv-blobs i:nth-child(1) { left: -25%; top: -15%; width: 95%; height: 70%; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-a) 75%, transparent), transparent); animation: pv-move-1 9s ease-in-out infinite alternate, g-breath 5s ease-in-out infinite alternate; }
+.pv-blobs i:nth-child(2) { right: -30%; top: 25%; width: 90%; height: 65%; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-b) 75%, transparent), transparent); animation: pv-move-2 11s ease-in-out infinite alternate, g-breath 6s 1s ease-in-out infinite alternate; }
+.pv-blobs i:nth-child(3) { left: -10%; bottom: -20%; width: 85%; height: 60%; background: radial-gradient(closest-side, color-mix(in srgb, var(--glow-c) 70%, transparent), transparent); animation: pv-move-1 13s 1s ease-in-out infinite alternate-reverse; }
+@keyframes pv-move-1 { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(28%, 14%) scale(1.2); } 100% { transform: translate(-8%, 24%) scale(0.92); } }
+@keyframes pv-move-2 { 0% { transform: translate(0, 0) scale(1.1); } 50% { transform: translate(-26%, -10%) scale(0.9); } 100% { transform: translate(-10%, 16%) scale(1.15); } }
+.pv-pattern { position: absolute; left: 0; top: 0; width: 200%; height: 200%; transform: scale(0.5); transform-origin: 0 0; background-image: var(--pattern); background-size: var(--pattern-size); opacity: 0.55; }
+.pv-dark .pv-pattern { opacity: 0.4; }
+.pv-body { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 10px; }
+.pv-name { font-family: "Golos Text", sans-serif; font-weight: 900; font-size: 26px; letter-spacing: -0.04em; line-height: 1; color: var(--text); }
+.pv-line { display: block; width: 70%; height: 4px; border-radius: 2px; background: var(--sub); opacity: 0.55; }
+.pv-line-short { width: 46%; }
+.pv-cta {
+  display: block; width: 84%; height: 16px; margin-top: 8px; border-radius: 99px;
+  background-color: var(--cta-bg); background-image: linear-gradient(105deg, var(--cta-bg), var(--cta-bg2), var(--cta-bg)); background-size: 260% 100%;
+  animation: g-flow 6s ease-in-out infinite alternate;
+}
+.pv-check { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--text); color: var(--bg); }
+.pv .swatch-label { font-size: 12.5px; font-weight: 500; }
+
+/* ---------- стиль значков (выбирает мастер): обычные, тонкие, жирные, двухцветные, в кружочках ---------- */
+.icon { stroke-width: 1.8; }
+.ic-thin .icon, .pv-ic.ic-thin .icon { stroke-width: 1.3; }
+.ic-regular .icon, .pv-ic.ic-regular .icon { stroke-width: 1.8; }
+.ic-bold .icon, .pv-ic.ic-bold .icon { stroke-width: 2.6; }
+.ic-duo .icon, .pv-ic.ic-duo .icon { stroke-width: 1.9; }
+.ic-circle .icon, .pv-ic.ic-circle .icon { stroke-width: 2; }
+/* двухцветные: замкнутые фигуры залиты полупрозрачным цветом */
+.ic-duo .icon:is([data-i="home"], [data-i="photo"], [data-i="calendar"], [data-i="pin"], [data-i="phone"], [data-i="user"], [data-i="users"], [data-i="message"], [data-i="shield"], [data-i="lock"], [data-i="mail"], [data-i="clock"], [data-i="eye"], [data-i="contacts"], [data-i="crown"], [data-i="megaphone"], [data-i="checkCircle"], [data-i="calendarPlus"]) path,
+.pv-ic.ic-duo .icon path { fill: currentColor; fill-opacity: 0.22; }
+.pv-ic:not(.ic-duo) .icon path { fill: none; }
+/* в кружочках: значки нижней панели и превью — в мягких кругах, текущая вкладка — круг цвета кнопки */
+.ic-circle .g-tabbar .tabbar-item .icon, .pv-ic.ic-circle .icon { box-sizing: content-box; padding: 6px; border-radius: 50%; background: var(--tile); }
+.ic-circle .g-tabbar .tabbar-on .icon { background: var(--cta-bg); color: var(--cta-text); }
+.ic-circle .g-tabbar .tabbar-item { gap: 1px; }
+.ics { display: flex; flex-direction: column; }
+.ics-item {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; width: 100%; min-height: 58px; padding: 8px 16px;
+  border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; position: relative; font: inherit;
+}
+.ics-item + .ics-item::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; border-top: 1px solid var(--sep); }
+.ics-item:active { background: var(--tile-press, var(--soft)); }
+.pv-ic { display: inline-flex; gap: 10px; align-items: center; }
+.ics-label { font-size: 16px; font-weight: 500; }
+.ics-on .ics-label { font-weight: 700; }
+
+/* ---------- контакты: все строки одинаковые — кружок со значком, подпись, значение ---------- */
+.g-row-i { grid-template-columns: 40px minmax(0, 1fr) auto; min-height: 64px; }
+.g-ci { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--cta-bg) 24%, transparent); color: var(--text); }
+.g-row-i .g-ci .icon:first-child { color: var(--text); }
+.g-row-i-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.g-ci-label { font-size: 13px; color: var(--sub); font-weight: 500; }
+.g-ci-val { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ---------- работы: вместо скруглённой рамки — неровный мягкий край, который чуть-чуть «дышит» ---------- */
+.g-home .home-work, .g-grid .gallery-item { border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+.g-home .home-work img, .g-grid .gallery-item img {
+  -webkit-mask-image: radial-gradient(62% 58% at 50% 50%, #000 58%, transparent 100%), radial-gradient(56% 64% at 50% 50%, #000 55%, transparent 100%);
+  mask-image: radial-gradient(62% 58% at 50% 50%, #000 58%, transparent 100%), radial-gradient(56% 64% at 50% 50%, #000 55%, transparent 100%);
+  -webkit-mask-size: 112% 112%, 112% 112%; mask-size: 112% 112%, 112% 112%;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: 30% 40%, 70% 60%; mask-position: 30% 40%, 70% 60%;
+  animation: g-edge 7s ease-in-out infinite alternate;
+}
+.g-home .home-work:nth-child(2n) img, .g-grid .gallery-item:nth-child(2n) img { animation-duration: 8.5s; animation-delay: -3s; }
+.g-home .home-work:nth-child(3n) img, .g-grid .gallery-item:nth-child(3n) img { animation-duration: 6.2s; animation-delay: -5s; animation-direction: alternate-reverse; }
+@keyframes g-edge {
+  0% { -webkit-mask-position: 30% 40%, 70% 60%; mask-position: 30% 40%, 70% 60%; }
+  33% { -webkit-mask-position: 65% 35%, 35% 62%; mask-position: 65% 35%, 35% 62%; }
+  66% { -webkit-mask-position: 45% 65%, 58% 30%; mask-position: 45% 65%, 58% 30%; }
+  100% { -webkit-mask-position: 60% 55%, 40% 45%; mask-position: 60% 55%, 40% 45%; }
+}
+.g-home .home-work img.g-fade.is-on, .g-grid .gallery-item img.g-fade.is-on { filter: none; }
+
+/* ---------- единый вид панели мастера и страницы клиента (html.glow): те же скругления, кнопки, поля, заголовки ---------- */
+html.glow { --radius: 22px; }
+/* заголовки разделов — как у клиента: жирный Golos, без капса */
+html.glow .section-title { text-transform: none; letter-spacing: -0.01em; font-size: 17px; font-weight: 800; color: var(--text); padding: 0 4px 8px; }
+html.glow .section-footer { font-size: 13.5px; color: var(--sub); }
+html.glow .section-body { border-radius: 22px; background: var(--tile); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+html.glow .cell { min-height: 56px; }
+html.glow .cell-title { font-size: 16px; }
+/* кнопки — таблетки, как «Записаться» */
+html.glow .btn { border-radius: 999px; font-weight: 700; font-family: var(--f); padding: 13px 20px; }
+html.glow .btn-small { border-radius: 999px; padding: 8px 14px; font-size: 14px; }
+html.glow .btn-big { border-radius: 999px; padding: 17px; font-size: 17px; }
+html.glow .btn-secondary { background: var(--tile); color: var(--text); }
+html.glow .btn-danger { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+/* поля — залитые скруглённые, как в записи у клиента */
+html.glow .field-label { font-size: 14px; font-weight: 500; color: var(--sub); padding-left: 4px; }
+html.glow .field input, html.glow .field textarea, html.glow .field select, html.glow .search, html.glow .field .time-select {
+  border: 0; border-radius: 16px; background: var(--tile); padding: 14px 16px; font-size: 16px; color: var(--text);
+  box-shadow: inset 0 0 0 1.5px transparent; transition: box-shadow 0.15s;
+}
+html.glow .field input:focus, html.glow .field textarea:focus, html.glow .search:focus { box-shadow: inset 0 0 0 1.5px var(--text); }
+html.glow .wh-int .time-select { border: 0; border-radius: 12px; background: var(--tile); padding: 9px 8px; color: var(--text); }
+/* ошибка поля — красной строкой под полем, без плашки */
+html.glow .field-error, html.toned.glow .field-error { background: none; color: #ff5d62; padding: 2px 4px 0; border-radius: 0; font-size: 13px; }
+html.glow:not(.glow-dark) .field-error { color: #c4232a; }
+/* вкладки панели и дни — таблетки, как дни у клиента */
+html.glow .tabs { border-radius: 999px; background: var(--tile); padding: 4px; }
+html.glow .tabs button, html.glow .tabs .tab { border-radius: 999px; }
+html.glow .day { border-radius: 18px; background: var(--tile); }
+html.glow .day-wd { text-transform: none; }
+html.glow .day-n { font-weight: 800; }
+html.glow .day-on { background: var(--text); color: var(--bg); }
+html.glow .day-on .day-wd { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+html.glow .day-today:not(.day-on) { box-shadow: 0 0 0 1.5px var(--text) inset; }
+html.glow .stat { border-radius: 20px; background: var(--tile); }
+html.glow .stat-n { font-weight: 900; letter-spacing: -0.03em; }
+/* чекбоксы и переключатели — цвета кнопки */
+html.glow input[type="checkbox"] { accent-color: var(--cta-bg); }

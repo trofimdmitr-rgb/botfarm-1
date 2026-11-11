@@ -28,6 +28,7 @@ export interface Settings {
   /** цвет страницы: rose | lilac | mint | amber | sky | graphite | banner | #rrggbb */
   palette?: string;
   paletteMode?: "dark" | "light";
+  iconStyle?: string;
 }
 
 export interface Service {

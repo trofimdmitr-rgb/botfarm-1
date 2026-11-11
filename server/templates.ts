@@ -33,6 +33,8 @@ export interface BusinessSettings {
   palette: string;
   /** Тёмная (по умолчанию, как Яндекс Музыка) или светлая страница */
   paletteMode: "dark" | "light";
+  /** Стиль значков: regular | thin | bold | duo | circle */
+  iconStyle: string;
 }
 
 export interface Template {
@@ -70,6 +72,7 @@ const baseSettings = (over: Partial<BusinessSettings>): BusinessSettings => ({
   bannerColor: "",
   palette: "rose",
   paletteMode: "dark",
+  iconStyle: "regular",
   ...over,
 });
 

@@ -28,7 +28,7 @@ type Route =
   | { name: "admin"; businessId: number }
   | { name: "super" };
 
-type ThemeBiz = { id: number; settings: { accent?: string; bannerFileId?: string; bannerColor?: string; palette?: string; paletteMode?: string } };
+type ThemeBiz = { id: number; settings: { accent?: string; bannerFileId?: string; bannerColor?: string; palette?: string; paletteMode?: string; iconStyle?: string } };
 
 function initialRoute(boot: Boot): Route {
   const view = urlParams.get("view");
@@ -80,6 +80,13 @@ function App() {
   const mode = themeBiz?.settings.paletteMode || "dark";
   const theme = useMemo(() => (palette ? glowTheme(glowFor(palette, mode, tone)) : null), [palette, mode, tone]);
   useLayoutEffect(() => applyTheme(theme, themeBiz?.settings.accent), [theme, themeBiz?.settings.accent]);
+  // стиль значков, который выбрал мастер, — класс на <html>
+  const iconStyle = themeBiz?.settings.iconStyle || "regular";
+  useLayoutEffect(() => {
+    const el = document.documentElement;
+    el.className = el.className.replace(/\bic-\w+/g, "").trim();
+    el.classList.add(`ic-${iconStyle}`);
+  }, [iconStyle]);
 
   if (error) return <ErrorBox error={error} onRetry={() => load().then((b) => b && setStack([initialRoute(b)]))} />;
   if (!boot || !stack.length) return <Spinner />;

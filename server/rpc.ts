@@ -389,7 +389,7 @@ const isPalette = (v: unknown) => typeof v === "string" && (PALETTES.includes(v)
 
 const SETTINGS_KEYS: (keyof BusinessSettings)[] = [
   "emoji", "accent", "description", "address", "contactPhone", "links", "welcome", "afterBookingText", "labels",
-  "stepMin", "minLeadMin", "maxDaysAhead", "cancelHours", "chooseStaff", "requirePhone", "remind2h", "fields", "palette", "paletteMode",
+  "stepMin", "minLeadMin", "maxDaysAhead", "cancelHours", "chooseStaff", "requirePhone", "remind2h", "fields", "palette", "paletteMode", "iconStyle",
 ];
 
 async function saveSettings(ctx: BizCtx, p: P) {
@@ -419,6 +419,7 @@ async function saveSettings(ctx: BizCtx, p: P) {
   if (settings.accent && !/^#[0-9a-f]{6}$/i.test(settings.accent)) delete settings.accent;
   if ("palette" in settings && !isPalette(settings.palette)) delete settings.palette;
   if ("paletteMode" in settings && settings.paletteMode !== "dark" && settings.paletteMode !== "light") delete settings.paletteMode;
+  if ("iconStyle" in settings && !["regular", "thin", "bold", "duo", "circle"].includes(String(settings.iconStyle))) delete settings.iconStyle;
   const b = await store.updateBusiness(db(), ctx.business.id, {
     name: p.name ? str(p.name, 80) : undefined,
     timezone: p.timezone ? str(p.timezone, 60) : undefined,

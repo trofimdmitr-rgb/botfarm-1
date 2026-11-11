@@ -71,12 +71,39 @@ function Skeleton({ rows = 3, kind = "rows" }: { rows?: number; kind?: "rows" | 
   );
 }
 
+/** Строка контактов: кружок со значком, сверху подпись, снизу значение — все строки одинаковые. */
+function ContactRow(p: { icon: string; label: string; value: string; href?: string; onClick?: () => void }) {
+  const inner = (
+    <>
+      <span className="g-ci">
+        <Icon name={p.icon} size={19} />
+      </span>
+      <span className="g-row-i-main">
+        <span className="g-ci-label">{p.label}</span>
+        <span className="g-ci-val">{p.value}</span>
+      </span>
+      <Icon name="arrow" size={16} />
+    </>
+  );
+  return p.href ? (
+    <a className="g-row-i" href={p.href} onClick={p.onClick}>
+      {inner}
+    </a>
+  ) : (
+    <button className="g-row-i" onClick={p.onClick}>
+      {inner}
+    </button>
+  );
+}
+
 /** Позвонить: tel: открывает звонилку; номер заодно копируется — если звонилка не открылась, его можно вставить. */
 function CallRow({ phone }: { phone: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <a
-      className="g-row-i g-call"
+    <ContactRow
+      icon="phone"
+      label={copied ? "Номер скопирован — можно вставить" : "Позвонить"}
+      value={phone}
       href={`tel:${phone.replace(/[^\d+]/g, "")}`}
       onClick={() => {
         haptic();
@@ -85,16 +112,7 @@ function CallRow({ phone }: { phone: string }) {
         } catch {}
         setTimeout(() => document.visibilityState === "visible" && setCopied(true), 1200);
       }}
-    >
-      <span className="g-call-ico">
-        <Icon name="phone" size={18} />
-      </span>
-      <span className="g-row-i-main">
-        <span className="g-call-label">{copied ? "Номер скопирован — можно вставить" : "Позвонить"}</span>
-        <span className="g-call-num">{phone}</span>
-      </span>
-      <Icon name="arrow" size={16} />
-    </a>
+    />
   );
 }
 
@@ -301,19 +319,11 @@ export function BusinessHome(p: {
         <section className="g-sec g-reveal">
           <div className="g-group">
             {s.address && (
-              <button className="g-row-i" onClick={() => openLink(`https://yandex.ru/maps/?text=${encodeURIComponent(s.address)}`)}>
-                <Icon name="pin" size={20} />
-                <span className="g-row-i-main">{s.address}</span>
-                <Icon name="arrow" size={16} />
-              </button>
+              <ContactRow icon="pin" label="Адрес" value={s.address} onClick={() => openLink(`https://yandex.ru/maps/?text=${encodeURIComponent(s.address)}`)} />
             )}
             {s.contactPhone && <CallRow phone={s.contactPhone} />}
             {s.links.map((l) => (
-              <button key={l.url} className="g-row-i" onClick={() => openLink(l.url)}>
-                <Icon name="link" size={20} />
-                <span className="g-row-i-main">{l.title}</span>
-                <Icon name="arrow" size={16} />
-              </button>
+              <ContactRow key={l.url} icon="link" label="Ссылка" value={l.title} onClick={() => openLink(l.url)} />
             ))}
           </div>
         </section>

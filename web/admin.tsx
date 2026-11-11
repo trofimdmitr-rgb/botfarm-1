@@ -23,7 +23,7 @@ import {
   shareLink,
   todayIn,
 } from "./lib";
-import { BW_ID, COLORS, colorDots, PASTELS } from "./palette";
+import { BW_ID, COLORS, type Glow, glowFor, glowVars, PASTELS } from "./palette";
 import type { Booking, PublicBusiness, Service, Settings, Staff } from "./types";
 import { StatusBadge } from "./client";
 import {
@@ -40,6 +40,7 @@ import {
   Tabs,
   TimeSelect,
   Toast,
+  ICON_STYLES,
   Toggle,
   useLoad,
   useToast,
@@ -482,8 +483,17 @@ function SettingsEditor({ ov, reload, toast, onSaved }: Ctx & { onSaved: () => v
         value={s.palette || "rose"}
         mode={s.paletteMode || "dark"}
         hasBanner={!!s.bannerFileId}
+        tone={s.bannerColor || ""}
         onChange={(palette, paletteMode) => {
           setS({ ...s, palette, paletteMode });
+          reload();
+        }}
+      />
+      <IconStyleEditor
+        businessId={b.id}
+        value={s.iconStyle || "regular"}
+        onChange={(iconStyle) => {
+          setS({ ...s, iconStyle });
           reload();
         }}
       />
@@ -985,7 +995,70 @@ function BannerEditor(p: { businessId: number; fileId?: string; onChange: (fileI
 }
 
 /** Цвет страницы: режим (тёмная/светлая), цвет пятна — готовый, из обложки или свой. Применяется сразу. */
-function PaletteEditor(p: { businessId: number; value: string; mode: "dark" | "light"; hasBanner: boolean; onChange: (palette: string, mode: "dark" | "light") => void }) {
+/** Живое превью палитры: маленькая страница с фоном, узором, переливающимися пятнами, заголовком и кнопкой. */
+function PalettePreview(p: { g: Glow; label: string; on: boolean; busy: boolean; onClick: () => void }) {
+  return (
+    <button className={`pv ${p.on ? "pv-on" : ""}`} onClick={p.onClick} aria-pressed={p.on} aria-label={p.label}>
+      <span className={`pv-card ${p.g.dark ? "pv-dark" : ""}`} style={glowVars(p.g) as React.CSSProperties}>
+        <span className="pv-blobs" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+        <span className="pv-pattern" aria-hidden />
+        <span className="pv-body" aria-hidden>
+          <span className="pv-name">Аа</span>
+          <span className="pv-line" />
+          <span className="pv-line pv-line-short" />
+          <span className="pv-cta" />
+        </span>
+        {p.on && (
+          <span className="pv-check">
+            <Icon name="check" size={14} />
+          </span>
+        )}
+      </span>
+      <span className="swatch-label">{p.busy ? "…" : p.label}</span>
+    </button>
+  );
+}
+
+/** Стиль значков на странице для клиентов: превью из четырёх значков в каждом стиле, применяется сразу. */
+function IconStyleEditor(p: { businessId: number; value: string; onChange: (v: string) => void }) {
+  const [busy, setBusy] = useState("");
+  const save = async (v: string) => {
+    if (busy) return;
+    setBusy(v);
+    try {
+      await api("admin.saveSettings", { businessId: p.businessId, settings: { iconStyle: v } });
+      haptic("success");
+      p.onChange(v);
+    } catch (e: any) {
+      await alertMsg(e.message);
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <Section title="Значки" footer="Один стиль для всех значков: нижняя панель, контакты, стрелки.">
+      <div className="ics">
+        {ICON_STYLES.map((st) => (
+          <button key={st.id} className={`ics-item ${p.value === st.id ? "ics-on" : ""}`} onClick={() => save(st.id)} aria-pressed={p.value === st.id}>
+            <span className={`pv-ic ic-${st.id}`} aria-hidden>
+              {["home", "calendar", "phone", "pin"].map((n) => (
+                <Icon key={n} name={n} size={22} />
+              ))}
+            </span>
+            <span className="ics-label">{busy === st.id ? "…" : st.label}</span>
+            {p.value === st.id && <Icon name="check" size={18} />}
+          </button>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function PaletteEditor(p: { businessId: number; value: string; mode: "dark" | "light"; hasBanner: boolean; tone: string; onChange: (palette: string, mode: "dark" | "light") => void }) {
   const custom = /^#[0-9a-f]{6}$/i.test(p.value);
   const [own, setOwn] = useState(custom ? p.value : "#e8442c");
   const [busy, setBusy] = useState("");
@@ -1002,28 +1075,16 @@ function PaletteEditor(p: { businessId: number; value: string; mode: "dark" | "l
       setBusy("");
     }
   };
-  type Opt = { id: string; label: string; dots: string[]; bg?: string; pattern?: string };
+  type Opt = { id: string; label: string; g: Glow };
   const bright: Opt[] = [
-    ...COLORS.map((c) => ({ id: c.id, label: c.label, dots: colorDots(c) })),
-    ...(p.hasBanner ? [{ id: "banner", label: "Из обложки", dots: [] }] : []),
+    ...COLORS.map((c) => ({ id: c.id, label: c.label, g: glowFor(c.id, p.mode, p.tone) })),
+    ...(p.hasBanner ? [{ id: "banner", label: "Из обложки", g: glowFor("banner", p.mode, p.tone) }] : []),
   ];
-  const pastels: Opt[] = PASTELS.map((c) => ({ id: c.id, label: c.label, dots: [c.a, c.b, c.c], bg: c.bg }));
-  const bwOpt: Opt = { id: BW_ID, label: "Ч/Б", dots: ["#ffffff", "#7a7a7a", "#111111"] };
+  const pastels: Opt[] = PASTELS.map((c) => ({ id: c.id, label: c.label, g: glowFor(c.id, "light", "") }));
+  const bwOpt: Opt = { id: BW_ID, label: "Ч/Б", g: glowFor(BW_ID, p.mode, "") };
   const pastelOn = PASTELS.some((c) => c.id === p.value);
-  const swatch = (g: Opt) => (
-    <button key={g.id} className={`swatch ${p.value === g.id ? "swatch-on" : ""}`} onClick={() => save(g.id, p.mode)} aria-pressed={p.value === g.id}>
-      <span
-        className="swatch-dot"
-        style={{
-          background: g.dots.length
-            ? `radial-gradient(circle at 30% 30%, ${g.dots[0]}, transparent 62%), radial-gradient(circle at 75% 70%, ${g.dots[1]}, transparent 60%), radial-gradient(circle at 70% 25%, ${g.dots[2]}, transparent 55%), ${g.bg ?? (p.mode === "dark" ? "#0b0b0d" : "#f2f2f4")}`
-            : "conic-gradient(from 90deg, #ff2d87, #ffc21a, #19e0a0, #3d8bff, #b13cff, #ff2d87)",
-        }}
-      >
-        {p.value === g.id && <Icon name="check" size={16} />}
-      </span>
-      <span className="swatch-label">{busy === g.id + p.mode ? "…" : g.label}</span>
-    </button>
+  const swatch = (o: Opt) => (
+    <PalettePreview key={o.id} g={o.g} label={o.label} on={p.value === o.id} busy={busy === o.id + p.mode} onClick={() => save(o.id, p.mode)} />
   );
   return (
     <Section title="Цвет страницы" footer="Фон, кнопка «Записаться» и текучее пятно света на странице для клиентов. Нажмите — применится сразу.">
@@ -1036,11 +1097,11 @@ function PaletteEditor(p: { businessId: number; value: string; mode: "dark" | "l
       </div>
       {pastelOn && <p className="swatch-note">Светлые палитры всегда светлые — переключатель действует на яркие и Ч/Б.</p>}
       <p className="swatch-group">Яркие — тёмные или светлые</p>
-      <div className="swatches">{bright.map(swatch)}</div>
+      <div className="pv-grid">{bright.map(swatch)}</div>
       <p className="swatch-group">Светлые с узором</p>
-      <div className="swatches">{pastels.map(swatch)}</div>
+      <div className="pv-grid">{pastels.map(swatch)}</div>
       <p className="swatch-group">Чёрно-белая</p>
-      <div className="swatches">{swatch(bwOpt)}</div>
+      <div className="pv-grid">{swatch(bwOpt)}</div>
       <div className="swatch-own">
         <label className="swatch-own-pick">
           <input type="color" value={own} onChange={(e) => setOwn(e.target.value)} aria-label="Свой цвет" />
